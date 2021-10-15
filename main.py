@@ -1,13 +1,17 @@
 import os
+import time
+import json
 import requests
 from bs4 import BeautifulSoup
-import json
-import time
+# Telegram imports
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import logging
+
 
 MAIN_URL = 'https://999.md/ru/list/transport/cars?view_type=short'
 TEMP_FILENAME = 'tmp_file.html'
 MAIN_FILE = 'all_info.json'
-MAIN_FILE_URLS = 'all_urls.json'
+BOT_DATA = 'bot_data.json'
 
 
 def save_link_data(link: str):
@@ -88,19 +92,11 @@ def parsing():
     if os.stat(MAIN_FILE).st_size > 0:
         with open(MAIN_FILE, 'r') as file:
             current_info = json.load(file)
+            last_link = current_info[len(current_info) - 1].get('Link')
             file.close()
     else:
-        current_info = []
-
-    # Current URLS
-    if os.stat(MAIN_FILE_URLS).st_size > 0:
-        with open(MAIN_FILE_URLS, 'r') as file:
-            current_links = json.load(file)
-            last_link = current_links[len(current_links) - 1]
-            file.close()
-    else:
-        current_links = []
         last_link = None
+        current_info = []
 
     # Parsing
     link_data = read_link_data()
@@ -112,16 +108,19 @@ def parsing():
         if current_link == last_link:
             last_link_found = True
         elif last_link_found:
-            current_links.append(current_link)
             current_info.append(info)
-
-    # Adding links into file
-    with open(MAIN_FILE_URLS, 'w') as file:
-        json.dump(current_links, file, indent=4, ensure_ascii=False)
 
     # Adding info into file
     with open(MAIN_FILE, 'w') as file:
         json.dump(current_info, file, indent=4, ensure_ascii=False)
+
+
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Hi! I can send you all new ads of cars from 999.md")
+
+
+def unknown(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
 
 def main():
@@ -130,9 +129,25 @@ def main():
     if not os.path.isfile(MAIN_FILE):
         with open(MAIN_FILE, 'x') as file:
             pass
-    if not os.path.isfile(MAIN_FILE_URLS):
-        with open(MAIN_FILE_URLS, 'x') as file:
+    if not os.path.isfile(BOT_DATA):
+        with open(BOT_DATA, 'x') as file:
             pass
+
+    # Telegram bot service code
+    updater = Updater(token='1915826120:AAELKWL6xfLbgQT7l0FRmwzYtGLwzOjXkaQ', use_context=True)
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+    dispatcher = updater.dispatcher
+
+    # Commands
+    # START
+    start_handler = CommandHandler('start', start)
+    dispatcher.add_handler(start_handler)
+    # UNKNOWN COMMAND
+    unknown_handler = MessageHandler(Filters.command, unknown)
+    dispatcher.add_handler(unknown_handler)
+
+    # Starting the bot
+    updater.start_polling()
 
     for i in range(2):
         time.sleep(2)
@@ -141,4 +156,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
