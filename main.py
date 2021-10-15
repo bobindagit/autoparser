@@ -2,6 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import json
+import time
 
 MAIN_URL = 'https://999.md/ru/list/transport/cars?view_type=short'
 TEMP_FILENAME = 'tmp_file.html'
@@ -33,11 +34,55 @@ def read_link_data() -> BeautifulSoup:
     return BeautifulSoup(html, "lxml")
 
 
-def main():
+def get_data(link_data: BeautifulSoup):
+
+    info = []
+
+    table = link_data.find('table', class_='ads-list-table')
+    rows = table.find_all('tr')
+
+    for tr in rows:
+
+        # Link and Title
+        link_title = tr.find('td', class_='ads-list-table-title').find('a')
+        link = 'https://999.md' + link_title.get('href')
+
+        if link.find('booster') == -1:
+            title = link_title.text.strip()
+            year = tr.find('td', class_='ads-list-table-col-3 feature-19').text.strip()
+            engine = tr.find('td', class_='ads-list-table-col-4 feature-103').text.strip()
+            mileage = tr.find('td', class_='ads-list-table-col-4 feature-104').text.strip()
+            transmission = tr.find('td', class_='ads-list-table-col-2 feature-101').text.strip()
+            # Price could be 'договорная'
+            try:
+                price = tr.find('td', class_='ads-list-table-price feature-2').text.strip()
+            except Exception:
+                price = tr.find('td', class_='ads-list-table-price feature-2 is-negotiable').text.strip()
+            date = tr.find('td', class_='ads-list-table-date').text.strip()
+            try:
+                image_link = tr.find('div', class_='photo js-tooltip-photo').get('data-image')
+                image_link = image_link.split('?')[0]
+            except Exception:
+                image_link = 'No photo'
+
+            info.append(
+                {'Link': link,
+                 'Title': title,
+                 'Year': year,
+                 'Engine': engine.replace('    ', ' '),
+                 'Mileage': mileage.replace('    ', ' '),
+                 'Transmission': transmission,
+                 'Price': price.replace('\u00A0', ' '),
+                 'Date': date,
+                 'ImageLink': image_link}
+            )
+
+    return info
+
+
+def parsing():
 
     save_link_data(MAIN_URL)
-
-    link_data = read_link_data()
 
     # Current INFO
     if os.stat(MAIN_FILE).st_size > 0:
@@ -55,47 +100,20 @@ def main():
             file.close()
     else:
         current_links = []
-        last_link = ''
+        last_link = None
 
     # Parsing
-    table = link_data.find('table', 'ads-list-table')
-    all_tr = table.findAll('tr')
-    list(all_tr).reverse()
-    #TODO Сформировать новую структуру и работать уже с ней массив можно уже нормально перевернуть
-    for tr in all_tr:
-
-        # Link and Title
-        link_title = tr.find('td', 'ads-list-table-title').find('a')
-        link = 'https://999.md' + link_title.get('href')
-
-        # We should add only new links
-        if link == last_link:
-            break
-        elif link.find('booster') == -1:
-            title = link_title.text.strip()
-            year = tr.find('td', 'ads-list-table-col-3 feature-19').text.strip()
-            engine = tr.find('td', 'ads-list-table-col-4 feature-103').text.strip()
-            mileage = tr.find('td', 'ads-list-table-col-4 feature-104').text.strip()
-            transmission = tr.find('td', 'ads-list-table-col-2 feature-101').text.strip()
-            # Price could be 'договорная'
-            try:
-                price = tr.find('td', 'ads-list-table-price feature-2').text.strip()
-            except Exception:
-                price = tr.find('td', 'ads-list-table-price feature-2 is-negotiable').text.strip()
-            date = tr.find('td', 'ads-list-table-date').text.strip()
-
-            current_links.append(link)
-
-            current_info.append(
-                {'Link': link,
-                 'Title': title,
-                 'Year': year,
-                 'Engine': engine.replace('    ', ' '),
-                 'Mileage': mileage.replace('    ', ' '),
-                 'Transmission': transmission,
-                 'Price': price.replace('\u00A0', ' '),
-                 'Date': date}
-            )
+    link_data = read_link_data()
+    data = get_data(link_data)
+    data.reverse()
+    last_link_found = False or last_link is None
+    for info in data:
+        current_link = info.get('Link')
+        if current_link == last_link:
+            last_link_found = True
+        elif last_link_found:
+            current_links.append(current_link)
+            current_info.append(info)
 
     # Adding links into file
     with open(MAIN_FILE_URLS, 'w') as file:
@@ -106,5 +124,21 @@ def main():
         json.dump(current_info, file, indent=4, ensure_ascii=False)
 
 
+def main():
+
+    # Checking that service files exists
+    if not os.path.isfile(MAIN_FILE):
+        with open(MAIN_FILE, 'x') as file:
+            pass
+    if not os.path.isfile(MAIN_FILE_URLS):
+        with open(MAIN_FILE_URLS, 'x') as file:
+            pass
+
+    for i in range(2):
+        time.sleep(2)
+        parsing()
+
+
 if __name__ == '__main__':
     main()
+
