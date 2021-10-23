@@ -1,4 +1,3 @@
-import http.client
 import os
 import time
 import json
@@ -8,6 +7,9 @@ from bs4 import BeautifulSoup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 
+
+#TODO Не работает полноценно механизм если удалили последнее объявление
+#TODO Доделать красивый вывод сообщения
 
 class Parser:
 
@@ -133,6 +135,28 @@ class Parser:
 
         return new_info
 
+    def generate_html_message(self, info: dict) -> dict:
+
+        # Downloading image
+        headers = {
+            "Accept": "*/*",
+            "User-Agent": "Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16.2"
+        }
+
+        session = requests.Session()
+        html = session.get(url=info.get('ImageLink'), headers=headers)
+        with open('temp_file.jpg', 'wb') as file:
+            file.write(html.content)
+
+        img = info.get('ImageLink')
+        title = f'<b>{info.get("Title")}</b> ({info.get("Price")})'
+        link = f'<i><a href="{info.get("Link")}">ССЫЛКА</a></i>'
+        html_message = f'{title}\n{link}'
+
+        return {'img': img,
+                'img_host': 'temp_file.jpg',
+                'message': html_message}
+
 
 class TelegramBot:
 
@@ -226,10 +250,18 @@ def main():
     while True:
         new_info = parser.parsing()
         for info in new_info:
+            message_info = parser.generate_html_message(info)
+            # img = message_info.get('img')
+            img = message_info.get('img_host')
+            message = message_info.get('message')
             for user_info in telegram_bot.current_ids:
                 chat_id = user_info.get('user_id')
-                title = info.get('Title')
-                telegram_bot.updater.bot.send_message(chat_id=chat_id, text=f'<b>{title}</b>', parse_mode='HTML')
+                with open(img, 'rb') as photo:
+                    img = photo.read()
+                telegram_bot.updater.bot.send_photo(chat_id=chat_id,
+                                                    photo=img,
+                                                    caption=message,
+                                                    parse_mode='HTML')
             time.sleep(1)
 
     telegram_bot.updater.idle()
