@@ -3,13 +3,10 @@ import time
 import json
 import requests
 from bs4 import BeautifulSoup
+import logging
 # Telegram imports
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import logging
 
-
-#TODO Не работает полноценно механизм если удалили последнее объявление
-#TODO Доделать красивый вывод сообщения
 
 class Parser:
 
@@ -110,20 +107,24 @@ class Parser:
         if os.stat(self.main_filename).st_size > 0:
             with open(self.main_filename, 'r') as file:
                 current_info = json.load(file)
-                last_link = current_info[len(current_info) - 1].get('Link')
+                len_current_info = len(current_info)
+                last_links = []
+                # Saving last 9 links, cuz last ad could be deleted and parser will stop working
+                for i in range(len_current_info - 1, len_current_info - 10, -1):
+                    last_links.append(current_info[i].get('Link'))
                 file.close()
         else:
-            last_link = None
+            last_links = []
             current_info = []
 
         # Parsing
         link_data = self.read_link_data()
         data = self.get_data(link_data)
         data.reverse()
-        last_link_found = False or last_link is None
+        last_link_found = False or len(last_links) == 0
         for info in data:
             current_link = info.get('Link')
-            if current_link == last_link:
+            if current_link in last_links:
                 last_link_found = True
             elif last_link_found:
                 current_info.append(info)
@@ -142,19 +143,14 @@ class Parser:
             "Accept": "*/*",
             "User-Agent": "Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16.2"
         }
-
         session = requests.Session()
-        html = session.get(url=info.get('ImageLink'), headers=headers)
-        with open('temp_file.jpg', 'wb') as file:
-            file.write(html.content)
+        html_img = session.get(url=info.get('ImageLink'), headers=headers)
 
-        img = info.get('ImageLink')
-        title = f'<b>{info.get("Title")}</b> ({info.get("Price")})'
-        link = f'<i><a href="{info.get("Link")}">ССЫЛКА</a></i>'
-        html_message = f'{title}\n{link}'
+        title = f'<b>{info.get("Title")} {info.get("Year")}</b> ({info.get("Price")})'
+        link = f'<i><a href="{info.get("Link")}"> *** ССЫЛКА *** </a></i>'
+        html_message = f'{title}\n{info.get("Engine")}; {info.get("Transmission")}\n{info.get("Mileage")}\n{link}'
 
-        return {'img': img,
-                'img_host': 'temp_file.jpg',
+        return {'img': html_img.content,
                 'message': html_message}
 
 
@@ -251,18 +247,15 @@ def main():
         new_info = parser.parsing()
         for info in new_info:
             message_info = parser.generate_html_message(info)
-            # img = message_info.get('img')
-            img = message_info.get('img_host')
             message = message_info.get('message')
+            img = message_info.get('img')
             for user_info in telegram_bot.current_ids:
                 chat_id = user_info.get('user_id')
-                with open(img, 'rb') as photo:
-                    img = photo.read()
                 telegram_bot.updater.bot.send_photo(chat_id=chat_id,
                                                     photo=img,
                                                     caption=message,
                                                     parse_mode='HTML')
-            time.sleep(1)
+            time.sleep(0.5)
 
     telegram_bot.updater.idle()
 
