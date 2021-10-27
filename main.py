@@ -1,3 +1,4 @@
+from parser import Parser
 import os
 import time
 import json
@@ -5,7 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 # Telegram imports
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
+from telegram import KeyboardButton, ReplyKeyboardMarkup
 
 
 class Parser:
@@ -81,7 +83,7 @@ class Parser:
                     image_link = tr.find('div', class_='photo js-tooltip-photo').get('data-image')
                     image_link = image_link.split('?')[0]
                 except Exception:
-                    image_link = 'No photo'
+                    image_link = 'https://www.carfitexperts.com/car-models/wp-content/uploads/2019/01/zen-1.jpg'
 
                 info.append(
                     {'Link': link,
@@ -109,8 +111,8 @@ class Parser:
                 current_info = json.load(file)
                 len_current_info = len(current_info)
                 last_links = []
-                # Saving last 9 links, cuz last ad could be deleted and parser will stop working
-                for i in range(len_current_info - 1, len_current_info - 10, -1):
+                # Saving last 19 links, cuz last ad could be deleted and parser will stop working
+                for i in range(len_current_info - 1, len_current_info - 20, -1):
                     last_links.append(current_info[i].get('Link'))
                 file.close()
         else:
@@ -129,6 +131,9 @@ class Parser:
             elif last_link_found:
                 current_info.append(info)
                 new_info.append(info)
+        # Safe control if last link wasn't found
+        if len(last_links) != 0 and not last_link_found:
+            new_info.extend(data)
 
         # Adding info into file
         with open(self.main_filename, 'w') as file:
@@ -174,6 +179,9 @@ class TelegramBot:
                 self.current_ids = json.load(file)
                 file.close()
 
+        # Initializing Menu object
+        self.menu = TelegramMenu()
+
         # Main telegram UPDATER
         self.updater = Updater(token=self.bot_token, use_context=True)
         self.dispatcher = self.updater.dispatcher
@@ -181,6 +189,7 @@ class TelegramBot:
         # Handlers
         self.dispatcher.add_handler(CommandHandler('start', self.start))
         self.dispatcher.add_handler(CommandHandler('stop', self.stop))
+        self.dispatcher.add_handler(MessageHandler(Filters.text, self.menu.button_handler))
         self.dispatcher.add_handler(MessageHandler(Filters.command, self.unknown))
 
         # Starting the bot
@@ -214,14 +223,15 @@ class TelegramBot:
 
     def start(self, update, context):
 
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text="Hi! I will send you all new ads of the cars from 999.md")
-
         # Saving user ID
         for key in context.dispatcher.chat_data.keys():
             user_data = {"user_id": key,
                          "filters:": "bmw, mercedes"}
             self.add_user(user_data)
+
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="Hi! I will send you all new ads of the cars from 999.md",
+                                 reply_markup=self.menu.reply_markup)
 
     def stop(self, update, context):
 
@@ -235,11 +245,24 @@ class TelegramBot:
         context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
 
+class TelegramMenu:
+
+    def __init__(self):
+
+        keyboard = [[KeyboardButton(text='/settings'), KeyboardButton(text='Key 2'), KeyboardButton(text='Регистрация')],
+                         [KeyboardButton(text='Key4'), KeyboardButton(text='Key5'), KeyboardButton(text='Key6')],
+                         [KeyboardButton(text='Key7'), KeyboardButton(text='Key8'), KeyboardButton(text='Key9')]]
+
+        self.reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+    def button_handler(self, update, context):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="Hi!")
+
+
 def main():
 
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-    parser = Parser()
 
     telegram_bot = TelegramBot()
 
@@ -251,10 +274,10 @@ def main():
             img = message_info.get('img')
             for user_info in telegram_bot.current_ids:
                 chat_id = user_info.get('user_id')
-                telegram_bot.updater.bot.send_photo(chat_id=chat_id,
-                                                    photo=img,
-                                                    caption=message,
-                                                    parse_mode='HTML')
+                # telegram_bot.updater.bot.send_photo(chat_id=chat_id,
+                #                                     photo=img,
+                #                                     caption=message,
+                #                                     parse_mode='HTML')
             time.sleep(0.5)
 
     telegram_bot.updater.idle()
