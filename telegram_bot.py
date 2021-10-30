@@ -1,4 +1,3 @@
-import os
 import json
 import requests
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
@@ -7,29 +6,22 @@ from telegram import KeyboardButton, ReplyKeyboardMarkup
 
 class TelegramBot:
 
-    def __init__(self):
+    def __init__(self, db_user_info):
 
         # Reading file and getting settings
         with open('settings.json', 'r') as file:
             file_data = json.load(file)
-            self.bot_data_filename = file_data.get('bot_data_filename')
-            self.bot_token = file_data.get('bot_token')
+            bot_token = file_data.get('bot_token')
             file.close()
 
-        # Initializing current user info
-        if not os.path.isfile(self.bot_data_filename):
-            with open(self.bot_data_filename, 'x') as file:
-                self.current_ids = []
-        else:
-            with open(self.bot_data_filename, 'r') as file:
-                self.current_ids = json.load(file)
-                file.close()
+        # Connecting to the DB
+        self.user_manager = UserManager(db_user_info)
 
         # Initializing Menu object
         self.menu = TelegramMenu()
 
         # Main telegram UPDATER
-        self.updater = Updater(token=self.bot_token, use_context=True)
+        self.updater = Updater(token=bot_token, use_context=True)
         self.dispatcher = self.updater.dispatcher
 
         # Handlers
@@ -43,37 +35,13 @@ class TelegramBot:
 
         print('Telegram bot initialized!')
 
-    def add_user(self, user_data: dict):
-
-        key_found = False
-        for item in self.current_ids:
-            if item.get('user_id') == user_data.get('user_id'):
-                key_found = True
-                break
-        if not key_found:
-            self.current_ids.append(user_data)
-            # Updating user info file
-            with open(self.bot_data_filename, 'w') as file:
-                json.dump(self.current_ids, file, indent=4, ensure_ascii=False)
-
-    def remove_user(self, user_id: str):
-
-        for i in range(self.current_ids.count()):
-            if self.current_ids[i].get('user_id') == user_id:
-                self.current_ids.remove(i)
-                break
-
-        # Updating user info file
-        with open(self.bot_data_filename, 'w') as file:
-            json.dump(self.current_ids, file, indent=4, ensure_ascii=False)
-
     def start(self, update, context):
 
         # Saving user ID
         for key in context.dispatcher.chat_data.keys():
-            user_data = {"user_id": key,
+            user_info = {"user_id": key,
                          "filters:": "bmw, mercedes"}
-            self.add_user(user_data)
+            self.user_manager.add_user(user_info)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text="Hi! I will send you all new ads of the cars from 999.md",
@@ -84,7 +52,7 @@ class TelegramBot:
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text='To start receiving new adds - write /start and choose filters')
 
-        self.remove_user(update.effective_chat.id)
+        self.user_manager.remove_user(update.effective_chat.id)
 
     def unknown(self, update, context):
 
@@ -107,6 +75,19 @@ class TelegramBot:
         return {'img': html_img.content,
                 'message': html_message}
 
+    def send_message(self, info: dict, db_user_info):
+
+        message_info = self.generate_html_message(info)
+        img = message_info.get('img')
+        img_caption = message_info.get('message')
+
+        for user_info in db_user_info.find():
+            chat_id = user_info.get('user_id')
+            self.updater.bot.send_photo(chat_id=chat_id,
+                                        photo=img,
+                                        caption=img_caption,
+                                        parse_mode='HTML')
+
 
 class TelegramMenu:
 
@@ -121,6 +102,22 @@ class TelegramMenu:
     def button_handler(self, update, context):
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text="Hi!")
+
+
+class UserManager:
+
+    def __init__(self, db_user_info):
+
+        self.db_user_info = db_user_info
+
+    def add_user(self, user_info: dict):
+
+        user_id = user_info.get('user_id')
+        self.db_user_info.update({'user_id': user_id}, user_info, upsert=True)
+
+    def remove_user(self, user_id):
+
+        self.db_user_info.remove({'user_id': user_id})
 
 
 if __name__ == '__main__':

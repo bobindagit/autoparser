@@ -3,30 +3,23 @@ import logging
 # Modules
 from parser import Parser
 from telegram_bot import TelegramBot
-# DB
-import pymongo
+from database import Database
 
 
 def main():
 
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+    database = Database()
+
     parser = Parser()
 
-    telegram_bot = TelegramBot()
+    telegram_bot = TelegramBot(database.db_user_info)
 
     while True:
-        new_info = parser.parse()
-        for info in new_info:
-            message_info = telegram_bot.generate_html_message(info)
-            message = message_info.get('message')
-            img = message_info.get('img')
-            for user_info in telegram_bot.current_ids:
-                chat_id = user_info.get('user_id')
-                # telegram_bot.updater.bot.send_photo(chat_id=chat_id,
-                #                                     photo=img,
-                #                                     caption=message,
-                #                                     parse_mode='HTML')
+        new_info = parser.parse(database.db_all_data)
+        for current_info in new_info:
+            telegram_bot.send_message(current_info, database.db_user_info)
             time.sleep(0.5)
 
     telegram_bot.updater.idle()

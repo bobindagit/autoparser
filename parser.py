@@ -13,14 +13,7 @@ class Parser:
             file_data = json.load(file)
             self.main_url = file_data.get('main_url')
             self.temp_filename = file_data.get('temp_filename')
-            self.main_filename = file_data.get('main_filename')
-            self.bot_data_filename = file_data.get('bot_data_filename')
             file.close()
-
-        # Checking that service file exists
-        if not os.path.isfile(self.main_filename):
-            with open(self.main_filename, 'x') as file:
-                pass
 
         print('Parser initialized!')
 
@@ -48,7 +41,7 @@ class Parser:
 
         return BeautifulSoup(html, "lxml")
 
-    def get_data(self, link_data: BeautifulSoup) -> list:
+    def generate_link_info(self, link_data: BeautifulSoup) -> list:
 
         info = []
 
@@ -92,46 +85,21 @@ class Parser:
 
         return info
 
-    def parse(self) -> list:
+    def parse(self, db_all_data) -> list:
 
         new_info = []
 
         self.save_link_data(self.main_url)
 
-        # Current INFO
-        if os.stat(self.main_filename).st_size > 0:
-            with open(self.main_filename, 'r') as file:
-                current_info = json.load(file)
-                len_current_info = len(current_info)
-                last_links = []
-                # Saving last 19 links, cuz last ad could be deleted and parser will stop working
-                for i in range(len_current_info - 1, len_current_info - 20, -1):
-                    last_links.append(current_info[i].get('Link'))
-                file.close()
-        else:
-            last_links = []
-            current_info = []
-
         # Parsing
         link_data = self.read_link_data()
-        data = self.get_data(link_data)
-        data.reverse()
+        data = self.generate_link_info(link_data)
 
-        last_link_found = False or len(last_links) == 0
-        for info in data:
-            current_link = info.get('Link')
-            if current_link in last_links:
-                last_link_found = True
-            elif last_link_found:
-                current_info.append(info)
-                new_info.append(info)
-        # Safe control if last link wasn't found
-        if len(last_links) != 0 and not last_link_found:
-            new_info.extend(data)
-
-        # Adding info into file
-        with open(self.main_filename, 'w') as file:
-            json.dump(current_info, file, indent=4, ensure_ascii=False)
+        for current_info in data:
+            current_link = current_info.get('Link')
+            write_result = db_all_data.update({'Link': current_link}, current_info, upsert=True)
+            if write_result.get('nUpserted') != 0 or write_result.get('nModified') != 0:
+                new_info.append(current_info)
 
         return new_info
 
