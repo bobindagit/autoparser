@@ -1,7 +1,7 @@
 import json
 import requests
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
-from telegram import KeyboardButton, ReplyKeyboardMarkup
+from telegram import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 
 
 class TelegramBot:
@@ -15,48 +15,25 @@ class TelegramBot:
             file.close()
 
         # Connecting to the DB
-        self.user_manager = UserManager(db_user_info)
+        user_manager = UserManager(db_user_info)
 
-        # Initializing Menu object
-        self.menu = TelegramMenu()
+        # Initializing Handler object
+        handlers = TelegramHandlers(user_manager)
 
         # Main telegram UPDATER
         self.updater = Updater(token=bot_token, use_context=True)
         self.dispatcher = self.updater.dispatcher
 
         # Handlers
-        self.dispatcher.add_handler(CommandHandler('start', self.start))
-        self.dispatcher.add_handler(CommandHandler('stop', self.stop))
-        self.dispatcher.add_handler(MessageHandler(Filters.text, self.menu.button_handler))
-        self.dispatcher.add_handler(MessageHandler(Filters.command, self.unknown))
+        self.dispatcher.add_handler(CommandHandler('start', handlers.start))
+        self.dispatcher.add_handler(CommandHandler('stop', handlers.stop))
+        self.dispatcher.add_handler(MessageHandler(Filters.text, handlers.button))
+        self.dispatcher.add_handler(MessageHandler(Filters.command, handlers.unknown))
 
         # Starting the bot
         self.updater.start_polling()
 
         print('Telegram bot initialized!')
-
-    def start(self, update, context):
-
-        # Saving user ID
-        for key in context.dispatcher.chat_data.keys():
-            user_info = {"user_id": key,
-                         "filters:": "bmw, mercedes"}
-            self.user_manager.add_user(user_info)
-
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text="Hi! I will send you all new ads of the cars from 999.md",
-                                 reply_markup=self.menu.reply_markup)
-
-    def stop(self, update, context):
-
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text='To start receiving new adds - write /start and choose filters')
-
-        self.user_manager.remove_user(update.effective_chat.id)
-
-    def unknown(self, update, context):
-
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
     def generate_html_message(self, info: dict) -> dict:
 
@@ -89,19 +66,52 @@ class TelegramBot:
                                         parse_mode='HTML')
 
 
+class TelegramHandlers:
+
+    def __init__(self, user_manager):
+
+        self.menu = TelegramMenu()
+        self.user_manager = user_manager
+
+    def start(self, update, context):
+
+        # Adding user ID
+        current_user = update.effective_chat
+        user_info = {"user_id": current_user.id,
+                     "full_name": current_user.full_name,
+                     "link": current_user.link,
+                     "filters:": ""}
+        self.user_manager.add_user(user_info)
+
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="Привет! Настрой фильтры и я буду присылать тебе все новые объявления о продаже автомобилей с 999.md",
+                                 reply_markup=self.menu.reply_markup)
+
+    def stop(self, update, context):
+
+        self.user_manager.remove_user(update.effective_chat.id)
+
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text='Чтобы опять получать уведомления - введи /start и настрой фильтры')
+
+    def unknown(self, update, context):
+
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="Я не знаю такой команды")
+
+    def button(self, update, context):
+
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="Hi!")
+
+
 class TelegramMenu:
 
     def __init__(self):
 
-        keyboard = [[KeyboardButton(text='/settings'), KeyboardButton(text='Key 2'), KeyboardButton(text='Регистрация')],
-                         [KeyboardButton(text='Key4'), KeyboardButton(text='Key5'), KeyboardButton(text='Key6')],
-                         [KeyboardButton(text='Key7'), KeyboardButton(text='Key8'), KeyboardButton(text='Key9')]]
+        keyboard = [[KeyboardButton(text='Фильтры'), KeyboardButton(text='Контакты')]]
 
         self.reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
-
-    def button_handler(self, update, context):
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text="Hi!")
 
 
 class UserManager:

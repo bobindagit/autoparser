@@ -8,7 +8,9 @@ from database import Database
 
 def main():
 
+    # Logging (TODO: check out if it works)
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
     database = Database()
 
@@ -19,7 +21,7 @@ def main():
     while True:
         new_info = parser.parse(database.db_all_data)
         for current_info in new_info:
-            telegram_bot.send_message(current_info, database.db_user_info)
+            # telegram_bot.send_message(current_info, database.db_user_info)
             time.sleep(0.5)
 
     telegram_bot.updater.idle()
