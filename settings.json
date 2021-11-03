@@ -1,6 +1,6 @@
 {
   "main_url": "https://999.md/ru/list/transport/cars?view_type=short&o_260_1=776&o_260_1=778",
   "temp_filename": "tmp_file.html",
-  "bot_token": "1915826120:AAELKWL6xfLbgQT7l0FRmwzYtGLwzOjXkaQ",
-  "mongodb_connection": "mongodb+srv://admin:076741141@telegrambot.ndfbl.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
+  "bot_token": "BOT_TOKEN",
+  "mongodb_connection": "MONGODB_STRING"
 }
