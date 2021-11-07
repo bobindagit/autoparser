@@ -98,7 +98,7 @@ class Parser:
         for current_info in data:
             current_link = current_info.get('Link')
             write_result = db_all_data.update({'Link': current_link}, current_info, upsert=True)
-            if write_result.get('nUpserted') != 0 or write_result.get('nModified') != 0:
+            if not write_result.get('updatedExisting'):
                 new_info.append(current_info)
 
         return new_info

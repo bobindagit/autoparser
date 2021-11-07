@@ -6,6 +6,8 @@ from telegram import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, 
 # Filter names
 FILTER_BRAND = 'filter_brand'
 FILTER_YEAR = 'filter_year'
+FILTER_REGISTRATION = 'filter_registration'
+FILTER_PRICE = 'filter_price'
 
 
 class TelegramBot:
@@ -18,18 +20,18 @@ class TelegramBot:
             bot_token = file_data.get('bot_token')
             file.close()
 
-        # Connecting to the DB
-        user_manager = UserManager(db_user_info)
-
-        # Initializing Menu object
-        menu = TelegramMenu(user_manager)
-
-        # Initializing Handler object
-        handlers = TelegramHandlers(user_manager, menu)
-
         # Main telegram UPDATER
         self.updater = Updater(token=bot_token, use_context=True)
         self.dispatcher = self.updater.dispatcher
+
+        # Connecting to the DB
+        self.user_manager = UserManager(db_user_info, self.updater)
+
+        # Initializing Menu object
+        menu = TelegramMenu(self.user_manager)
+
+        # Initializing Handler object
+        handlers = TelegramHandlers(self.user_manager, menu)
 
         # Handlers
         self.dispatcher.add_handler(CommandHandler('start', handlers.start))
@@ -50,6 +52,34 @@ class TelegramBot:
         self.updater.start_polling()
 
         print('Telegram bot initialized!')
+
+
+class UserManager:
+
+    def __init__(self, db_user_info, updater: Updater):
+        self.db_user_info = db_user_info
+        self.updater = updater
+
+    def add_user(self, user_info: dict):
+        user_id = user_info.get('user_id')
+        self.db_user_info.update({'user_id': user_id}, user_info, upsert=True)
+
+    def remove_user(self, user_id: str):
+        self.db_user_info.remove({'user_id': user_id})
+
+    def set_current_step(self, current_step: str, user_id: str):
+        value_to_update = {"$set": {"current_step": current_step}}
+        self.db_user_info.update({'user_id': user_id}, value_to_update)
+
+    def get_current_step(self, user_id: str):
+        return self.db_user_info.find({'user_id': user_id})[0].get('current_step')
+
+    def set_filter(self, user_id: str, filter_name: str, new_value: list):
+        value_to_update = {"$set": {filter_name: new_value}}
+        self.db_user_info.update({'user_id': user_id}, value_to_update)
+
+    def get_filter(self, user_id: str, filter_name: str):
+        return self.db_user_info.find({'user_id': user_id})[0].get(filter_name)
 
     def generate_html_message(self, info: dict) -> dict:
 
@@ -75,38 +105,61 @@ class TelegramBot:
         img_caption = message_info.get('message')
 
         for user_info in db_user_info.find():
-            chat_id = user_info.get('user_id')
-            self.updater.bot.send_photo(chat_id=chat_id,
-                                        photo=img,
-                                        caption=img_caption,
-                                        parse_mode='HTML')
+            # Check if user has filters and current info matches user filters
+            if (len(user_info.get(FILTER_BRAND)) != 0
+                or len(user_info.get(FILTER_REGISTRATION)) != 0
+                or len(user_info.get(FILTER_YEAR)) != 0
+                or len(user_info.get(FILTER_PRICE)) != 0) \
+                    and self.info_matches_filters(info, user_info):
+                chat_id = user_info.get('user_id')
+                self.updater.bot.send_photo(chat_id=chat_id,
+                                            photo=img,
+                                            caption=img_caption,
+                                            parse_mode='HTML')
 
+    def info_matches_filters(self, info: dict, user_info: dict) -> bool:
 
-class UserManager:
-
-    def __init__(self, db_user_info):
-        self.db_user_info = db_user_info
-
-    def add_user(self, user_info: dict):
         user_id = user_info.get('user_id')
-        self.db_user_info.update({'user_id': user_id}, user_info, upsert=True)
 
-    def remove_user(self, user_id: str):
-        self.db_user_info.remove({'user_id': user_id})
+        # BRANDS
+        current_filter = self.get_filter(user_id, FILTER_BRAND)
+        title = info.get('Title').upper()
+        if len(current_filter) != 0:
+            title_found = False
+            for title_filter in current_filter:
+                if title.find(title_filter) != -1:
+                    title_found = True
+                    break
+            if not title_found:
+                return False
 
-    def set_current_step(self, current_step: str, user_id: str):
-        value_to_update = {"$set": {"current_step": current_step}}
-        self.db_user_info.update({'user_id': user_id}, value_to_update)
+        # YEARS
+        current_filter = self.get_filter(user_id, FILTER_YEAR)
+        if len(current_filter) != 0 and info.get('Year') not in current_filter:
+            return False
 
-    def get_current_step(self, user_id: str):
-        return self.db_user_info.find({'user_id': user_id})[0].get('current_step')
+        # # REGISTRATION
+        # current_filter = self.get_filter(user_id, FILTER_REGISTRATION)
+        # if current_filter.count() != 0 and info.get('Title') not in current_filter:
+        #     return False
 
-    def set_filter(self, user_id: str, filter_name: str, new_value: list):
-        value_to_update = {"$set": {filter_name: new_value}}
-        self.db_user_info.update({'user_id': user_id}, value_to_update)
+        # PRICES
+        current_filter = self.get_filter(user_id, FILTER_PRICE)
+        price = info.get('Price').replace(' ', '').replace('€', '').replace('$', '')
+        if len(current_filter) != 0 and price.isdigit():
+            price_range_match_found = False
+            for price_range in current_filter:
+                price_range_list = price_range.split('-')
+                if len(price_range_list) > 1:
+                    price_from = price_range_list[0]
+                    price_to = price_range_list[1]
+                    if price_from <= price <= price_to:
+                        price_range_match_found = True
+                        break
+            if not price_range_match_found:
+                return False
 
-    def get_filter(self, user_id: str, filter_name: str):
-        return self.db_user_info.find({'user_id': user_id})[0].get(filter_name)
+        return True
 
 
 class TelegramMenu:
@@ -127,7 +180,7 @@ class TelegramMenu:
         current_step = self.user_manager.get_current_step(user_id)
 
         if user_message == 'ФИЛЬТРЫ':
-            update.message.reply_text('ФИЛЬТРЫ:', reply_markup=InlineKeyboardMarkup(self.main_menu_keyboard()))
+            update.message.reply_text('Выберите фильтр для настройки', reply_markup=InlineKeyboardMarkup(self.main_menu_keyboard()))
         elif user_message == 'КОНТАКТЫ':
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text="Создатель бота - @bobtb")
@@ -137,28 +190,26 @@ class TelegramMenu:
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text="Я не знаю такой команды")
 
-    def main_menu_keyboard(self):
+    def main_menu_keyboard(self) -> list:
+
+        return [
+            [InlineKeyboardButton('Марка', callback_data='m1')],
+            [InlineKeyboardButton('Год выпуска', callback_data='m2')],
+            [InlineKeyboardButton('Регистрация', callback_data='m3')],
+            [InlineKeyboardButton('Цена', callback_data='m4')]
+        ]
+
+    def secondary_menu_keyboard(self) -> list:
 
         return [
             [
-                InlineKeyboardButton('Марка', callback_data='m1'),
-                InlineKeyboardButton('Год выпуска', callback_data='m2'),
-                InlineKeyboardButton('Регистрация', callback_data='m3'),
-                InlineKeyboardButton('Цена', callback_data='m4')
+                InlineKeyboardButton('✅ Установленные', callback_data='filter_list'),
+                InlineKeyboardButton('❌ Очистить', callback_data='filter_clear'),
+                InlineKeyboardButton('◀️ Главное меню', callback_data='back')
             ]
         ]
 
-    def secondary_menu_keyboard(self):
-
-        return [
-            [
-                InlineKeyboardButton('Установленные фильтры', callback_data='filter_list'),
-                InlineKeyboardButton('Очистить фильтр', callback_data='filter_clear'),
-                InlineKeyboardButton('Главное меню', callback_data='back')
-            ]
-        ]
-
-    def all_filters_button(self, update, context):
+    def all_filters_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
         current_step = self.user_manager.get_current_step(user_id)
@@ -189,7 +240,7 @@ class TelegramMenu:
         query = update.callback_query
         query.answer()
 
-        query.edit_message_text(text='ФИЛЬТРЫ:',
+        query.edit_message_text(text='Выберите фильтр для настройки',
                                 reply_markup=InlineKeyboardMarkup(self.main_menu_keyboard()))
         self.user_manager.set_current_step('', update.effective_chat.id)
 
@@ -197,8 +248,9 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-        query.edit_message_text(text='Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (Пример: BMW 5 series)',
-                                reply_markup=InlineKeyboardMarkup(self.secondary_menu_keyboard()))
+        query.edit_message_text(
+            text='Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (Пример: BMW 5 series)',
+            reply_markup=InlineKeyboardMarkup(self.secondary_menu_keyboard()))
         self.user_manager.set_current_step(FILTER_BRAND, update.effective_chat.id)
 
     def year_button(self, update, context):
@@ -211,13 +263,42 @@ class TelegramMenu:
 
     def registration_button(self, update, context):
 
+        if update.callback_query.data == 'm3_1':
+            self.user_manager.set_filter(update.effective_chat.id, FILTER_REGISTRATION, ['Республика Молдова'])
+        elif update.callback_query.data == 'm3_2':
+            self.user_manager.set_filter(update.effective_chat.id, FILTER_REGISTRATION, ['Приднестровье'])
+        elif update.callback_query.data == 'm3_3':
+            self.user_manager.set_filter(update.effective_chat.id, FILTER_REGISTRATION, ['Другое'])
+
         query = update.callback_query
         query.answer()
+
+        query.edit_message_text(text='Выберите фильтр по регистрации автомобиля:',
+                                reply_markup=self.generate_registration_buttons(update.effective_chat.id))
+        self.user_manager.set_current_step(FILTER_REGISTRATION, update.effective_chat.id)
+
+    def generate_registration_buttons(self, user_id: str):
+
+        keyboard = [
+            InlineKeyboardButton('Республика Молдова', callback_data='m3_1'),
+            InlineKeyboardButton('Приднестровье', callback_data='m3_2'),
+            InlineKeyboardButton('Другое', callback_data='m3_3')
+        ]
+
+        current_filters = self.user_manager.get_filter(user_id, FILTER_REGISTRATION)
+        for key in keyboard:
+            if key.text in current_filters:
+                keyboard.remove(key)
+
+        return InlineKeyboardMarkup([keyboard, self.secondary_menu_keyboard()[0]])
 
     def price_button(self, update, context):
 
         query = update.callback_query
         query.answer()
+        query.edit_message_text(text='Введите диапазон цен в € (Пример: 10000-15000)',
+                                reply_markup=InlineKeyboardMarkup(self.secondary_menu_keyboard()))
+        self.user_manager.set_current_step(FILTER_PRICE, update.effective_chat.id)
 
     def message_handler(self, user_id: str, user_message: str, current_step: str):
 
@@ -229,7 +310,6 @@ class TelegramMenu:
                 filters_brand.append(user_message)
             self.user_manager.set_filter(user_id, FILTER_BRAND, filters_brand)
         elif current_step == FILTER_YEAR:
-            # TODO: Fix years interval adding
             filters_year = self.user_manager.get_filter(user_id, FILTER_YEAR)
             current_filter = user_message.replace(' ', '')
             # Checking if user introduced interval
@@ -239,7 +319,7 @@ class TelegramMenu:
                 second_year = current_filters[1]
                 years_interval = []
                 if first_year.isdigit() and second_year.isdigit():
-                    for i in range(int(first_year), int(second_year) - int(first_year)):
+                    for i in range(int(first_year), int(second_year) + 1):
                         years_interval.append(str(i))
                     for year in years_interval:
                         if year not in filters_year:
@@ -247,18 +327,22 @@ class TelegramMenu:
             else:
                 filters_year.append(user_message)
             self.user_manager.set_filter(user_id, FILTER_YEAR, filters_year)
+        elif current_step == FILTER_PRICE:
+            filters_price = self.user_manager.get_filter(user_id, FILTER_PRICE)
+            current_filter = user_message.replace(' ', '')
+            if current_filter.find('-') != -1 and current_filter not in filters_price:
+                filters_price.append(current_filter)
+                self.user_manager.set_filter(user_id, FILTER_PRICE, filters_price)
 
 
 class TelegramHandlers:
 
     def __init__(self, user_manager: UserManager, menu: TelegramMenu):
-
         # Initializing menu
         self.menu = menu
         self.user_manager = user_manager
 
     def start(self, update, context):
-
         # Adding user ID
         current_user = update.effective_chat
         user_info = {"user_id": current_user.id,
@@ -266,7 +350,9 @@ class TelegramHandlers:
                      "link": current_user.link,
                      "current_step": "",
                      FILTER_BRAND: [],
-                     FILTER_YEAR: []}
+                     FILTER_YEAR: [],
+                     FILTER_REGISTRATION: [],
+                     FILTER_PRICE: []}
         self.user_manager.add_user(user_info)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
@@ -274,14 +360,12 @@ class TelegramHandlers:
                                  reply_markup=self.menu.reply_markup)
 
     def stop(self, update, context):
-
         self.user_manager.remove_user(update.effective_chat.id)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text='Чтобы опять получать уведомления - введи /start и настрой фильтры')
 
     def unknown(self, update, context):
-
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text="Я не знаю такой команды")
 

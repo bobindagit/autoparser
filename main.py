@@ -21,8 +21,7 @@ def main():
     while True:
         new_info = parser.parse(database.db_all_data)
         for current_info in new_info:
-            # telegram_bot.send_message(current_info, database.db_user_info)
-            time.sleep(0.5)
+            telegram_bot.user_manager.send_message(current_info, database.db_user_info)
 
     telegram_bot.updater.idle()
 
