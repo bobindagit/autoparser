@@ -17,7 +17,7 @@ class Parser:
 
         print('Parser initialized!')
 
-    def save_link_data(self, link: str):
+    def save_link_data(self, link: str) -> None:
 
         headers = {
             "Accept": "*/*",
