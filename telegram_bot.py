@@ -104,7 +104,7 @@ class UserManager:
             "User-Agent": "Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16.2"
         }
         session = requests.Session()
-        html_img = session.get(url=info.get('ImageLink'), headers=headers)
+        html_img = session.get(url=info.get('Image'), headers=headers)
 
         title = f'<b>{info.get("Title")} {info.get("Year")}</b> ({info.get("Price")})'
         link = f'<i><a href="{info.get("Link")}"> *** ССЫЛКА *** </a></i>'

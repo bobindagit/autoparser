@@ -14,14 +14,16 @@ def main():
 
     database = Database()
 
-    parser = Parser()
+    parser = Parser(database.db_all_data)
 
     telegram_bot = TelegramBot(database.db_user_info)
 
     while True:
-        new_info = parser.parse(database.db_all_data)
-        for current_info in new_info:
-            telegram_bot.user_manager.send_message(current_info, database.db_user_info)
+        new_info = parser.start_parsing()
+        for info in new_info:
+            current_link = info.get('Link')
+            database.db_all_data.update({'Link': current_link}, info, upsert=True)
+            telegram_bot.user_manager.send_message(info, database.db_user_info)
 
     telegram_bot.updater.idle()
 
