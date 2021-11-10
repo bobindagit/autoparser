@@ -1,4 +1,3 @@
-import time
 import logging
 # Modules
 from parser import Parser

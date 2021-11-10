@@ -5,6 +5,7 @@ import aiohttp
 
 
 def get_value(soup: BeautifulSoup, value_title: str) -> str:
+
     # Find by key
     key = soup.find('span', class_='adPage__content__features__key', string=value_title)
     if key is None:
@@ -14,6 +15,7 @@ def get_value(soup: BeautifulSoup, value_title: str) -> str:
 
 
 def link_exists(link: str, db_all_data) -> bool:
+
     return db_all_data.find({'Link': link}).retrieved > 0
 
 
@@ -28,9 +30,9 @@ async def get_link_data(session, link: str) -> dict:
         # Year
         year = get_value(soup, ' Год выпуска ')
         # Engine
-        engine = get_value(soup, ' Объем двигателя ')
+        engine = get_value(soup, ' Объем двигателя ').replace('   ', ' ')
         # Mileage
-        mileage = get_value(soup, ' Пробег ')
+        mileage = get_value(soup, ' Пробег ').replace('   ', ' ')
         # Transmission
         transmission = get_value(soup, ' КПП ')
         # Fuel type
@@ -97,7 +99,7 @@ class Parser:
 
         print('Parser initialized!')
 
-    async def gather_data(self):
+    async def gather_data(self) -> list:
 
         async with aiohttp.ClientSession(headers=self.headers) as session:
             response = await session.get(self.main_url, ssl=False)
@@ -110,13 +112,12 @@ class Parser:
             for row in table_rows:
                 link = 'https://999.md' + row.find('td', class_='ads-list-table-title').find('a').get('href')
                 if link.find('booster') == -1 and not link_exists(link, self.db_all_data):
-                    task = asyncio.create_task(get_link_data(session, link))
-                    tasks.append(task)
+                    tasks.append(asyncio.create_task(get_link_data(session, link)))
 
             # Parsing
             return await asyncio.gather(*tasks)
 
-    def start_parsing(self):
+    def start_parsing(self) -> list:
 
         return asyncio.run(self.gather_data())
 

@@ -106,9 +106,17 @@ class UserManager:
         session = requests.Session()
         html_img = session.get(url=info.get('Image'), headers=headers)
 
-        title = f'<b>{info.get("Title")} {info.get("Year")}</b> ({info.get("Price")})'
+        title = f'<b>{info.get("Title")} {info.get("Year")}</b> ({info.get("Price")} €)'
+        contacts = ''
+        for contact in info.get('Contacts'):
+            contacts += contact + '; '
         link = f'<i><a href="{info.get("Link")}"> *** ССЫЛКА *** </a></i>'
-        html_message = f'{title}\n{info.get("Engine")}; {info.get("Transmission")}\n{info.get("Mileage")}\n{link}'
+        html_message = f'{title}' \
+                       f'\n> Мотор: {info.get("Engine")}; {info.get("Fuel_type")}' \
+                       f'\n> Пробег: {info.get("Mileage")}; КПП: {info.get("Transmission")}' \
+                       f'\n> {info.get("Locality")}' \
+                       f'\n> Контакты: {contacts.strip()}' \
+                       f'\n{link}'
 
         return {'img': html_img.content,
                 'message': html_message}
