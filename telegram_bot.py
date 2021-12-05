@@ -1,5 +1,6 @@
 import json
 import requests
+import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 from telegram import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -8,14 +9,25 @@ FILTER_BRAND = 'filter_brand'
 FILTER_YEAR = 'filter_year'
 FILTER_REGISTRATION = 'filter_registration'
 FILTER_PRICE = 'filter_price'
+FILTER_FUEL_TYPE = 'filter_fuel_type'
+FILTER_TRANSMISSION = 'filter_transmission'
+FILTER_CONDITION = 'filter_condition'
+FILTER_AUTHOR_TYPE = 'filter_author_type'
+FILTER_WHEEL = 'filter_wheel'
 
 # Main menu
 MAIN_MENU = [
             [InlineKeyboardButton('Марка', callback_data='m1')],
             [InlineKeyboardButton('Год выпуска', callback_data='m2')],
             [InlineKeyboardButton('Регистрация', callback_data='m3')],
-            [InlineKeyboardButton('Цена', callback_data='m4')]
+            [InlineKeyboardButton('Цена', callback_data='m4')],
+            [InlineKeyboardButton('Тип топлива', callback_data='m5')],
+            [InlineKeyboardButton('Тип КПП', callback_data='m6')],
+            [InlineKeyboardButton('Состояние', callback_data='m7')],
+            [InlineKeyboardButton('Автор объявления', callback_data='m8')],
+            [InlineKeyboardButton('Руль', callback_data='m9')],
         ]
+
 # Secondary menu
 SECONDARY_MENU = [
             [InlineKeyboardButton('✅ Установленные', callback_data='filter_list')],
@@ -58,6 +70,11 @@ class TelegramBot:
         self.dispatcher.add_handler(CallbackQueryHandler(menu.year_button, pattern='m2'))
         self.dispatcher.add_handler(CallbackQueryHandler(menu.registration_button, pattern='m3'))
         self.dispatcher.add_handler(CallbackQueryHandler(menu.price_button, pattern='m4'))
+        self.dispatcher.add_handler(CallbackQueryHandler(menu.fuel_button, pattern='m5'))
+        self.dispatcher.add_handler(CallbackQueryHandler(menu.transmission_button, pattern='m6'))
+        self.dispatcher.add_handler(CallbackQueryHandler(menu.condition_button, pattern='m7'))
+        self.dispatcher.add_handler(CallbackQueryHandler(menu.author_button, pattern='m8'))
+        self.dispatcher.add_handler(CallbackQueryHandler(menu.wheel_button, pattern='m9'))
         # Secondary menu handlers
         self.dispatcher.add_handler(CallbackQueryHandler(secondary_menu.all_filters_button, pattern='filter_list'))
         self.dispatcher.add_handler(CallbackQueryHandler(secondary_menu.clear_button, pattern='filter_clear'))
@@ -75,26 +92,55 @@ class UserManager:
         self.db_user_info = db_user_info
         self.updater = updater
 
-    def add_user(self, user_info: dict) -> None:
-        user_id = user_info.get('user_id')
-        self.db_user_info.update({'user_id': user_id}, user_info, upsert=True)
+    def create_user(self, current_user: telegram.Chat) -> None:
+        user_info = {'user_id': current_user.id,
+                     'full_name': current_user.full_name,
+                     'link': current_user.link,
+                     'current_step': '',
+                     'active': False,
+                     FILTER_BRAND: [],
+                     FILTER_YEAR: [],
+                     FILTER_REGISTRATION: [],
+                     FILTER_PRICE: [],
+                     FILTER_FUEL_TYPE: [],
+                     FILTER_TRANSMISSION: [],
+                     FILTER_CONDITION: [],
+                     FILTER_AUTHOR_TYPE: [],
+                     FILTER_WHEEL: []}
+        self.db_user_info.update({'user_id': current_user.id}, user_info, upsert=True)
 
-    def remove_user(self, user_id: str) -> None:
+    def delete_user(self, user_id: str) -> None:
         self.db_user_info.remove({'user_id': user_id})
 
-    def set_current_step(self, current_step: str, user_id: str) -> None:
-        value_to_update = {"$set": {"current_step": current_step}}
-        self.db_user_info.update({'user_id': user_id}, value_to_update)
+    def reset_user(self, current_user: telegram.Chat) -> None:
+        user_id = current_user.id
+        # Saving service fields
+        current_step = self.get_field(user_id, 'current_step')
+        active = self.get_field(user_id, 'active')
+        self.delete_user(user_id)
+        self.create_user(current_user)
+        self.set_field(user_id, 'current_step', current_step)
+        self.set_field(user_id, 'active', active)
 
-    def get_current_step(self, user_id: str) -> str:
-        return self.db_user_info.find({'user_id': user_id})[0].get('current_step')
+    # def set_field(self, user_id: str, field_name: str, new_value: str) -> None:
+    #     if field_name.find('filter') == -1:
+    #         value_to_update = {"$set": {field_name: new_value}}
+    #     else:
+    #         current_value = self.get_field(user_id, field_name)
+    #
+    #     # value_to_update = {"$set": {"current_step": current_step}}
+    #     # self.db_user_info.update({'user_id': user_id}, value_to_update)
+
+    def get_field(self, user_id: str, field_name: str) -> str | bool | list:
+        return self.db_user_info.find({'user_id': user_id})[0].get(field_name)
+
+    def set_field(self, user_id: str, field_name: str, new_value: str) -> None:
+        value_to_update = {"$set": {field_name: new_value}}
+        self.db_user_info.update({'user_id': user_id}, value_to_update)
 
     def set_filter(self, user_id: str, filter_name: str, new_value: list) -> None:
         value_to_update = {"$set": {filter_name: new_value}}
         self.db_user_info.update({'user_id': user_id}, value_to_update)
-
-    def get_filter(self, user_id: str, filter_name: str) -> list:
-        return self.db_user_info.find({'user_id': user_id})[0].get(filter_name)
 
     def generate_html_message(self, info: dict) -> dict:
 
@@ -112,10 +158,10 @@ class UserManager:
             contacts += contact + '; '
         link = f'<i><a href="{info.get("Link")}"> *** ССЫЛКА *** </a></i>'
         html_message = f'{title}' \
-                       f'\n> Мотор: {info.get("Engine")}; {info.get("Fuel_type")}' \
-                       f'\n> Пробег: {info.get("Mileage")}; КПП: {info.get("Transmission")}' \
-                       f'\n> {info.get("Locality")}' \
-                       f'\n> Контакты: {contacts.strip()}' \
+                       f'\n┌ Мотор: {info.get("Engine")}; {info.get("Fuel_type")}' \
+                       f'\n├ Пробег: {info.get("Mileage")}; КПП: {info.get("Transmission")}' \
+                       f'\n├ {info.get("Locality")}' \
+                       f'\n└ Контакты: {contacts.strip()}' \
                        f'\n{link}'
 
         return {'img': html_img.content,
@@ -129,6 +175,7 @@ class UserManager:
 
         for user_info in db_user_info.find():
             # Check if user has filters and current info matches user filters
+
             if (len(user_info.get(FILTER_BRAND)) != 0
                 or len(user_info.get(FILTER_REGISTRATION)) != 0
                 or len(user_info.get(FILTER_YEAR)) != 0
@@ -145,7 +192,7 @@ class UserManager:
         user_id = user_info.get('user_id')
 
         # BRANDS
-        current_filter = self.get_filter(user_id, FILTER_BRAND)
+        current_filter = self.get_field(user_id, FILTER_BRAND)
         title = info.get('Title').upper()
         if len(current_filter) != 0:
             title_found = False
@@ -157,17 +204,17 @@ class UserManager:
                 return False
 
         # YEARS
-        current_filter = self.get_filter(user_id, FILTER_YEAR)
+        current_filter = self.get_field(user_id, FILTER_YEAR)
         if len(current_filter) != 0 and info.get('Year') not in current_filter:
             return False
 
-        # # REGISTRATION
-        # current_filter = self.get_filter(user_id, FILTER_REGISTRATION)
-        # if current_filter.count() != 0 and info.get('Title') not in current_filter:
-        #     return False
+        # REGISTRATION
+        current_filter = self.get_field(user_id, FILTER_REGISTRATION)
+        if len(current_filter) != 0 and info.get('Title') not in current_filter:
+            return False
 
         # PRICES
-        current_filter = self.get_filter(user_id, FILTER_PRICE)
+        current_filter = self.get_field(user_id, FILTER_PRICE)
         price = info.get('Price').replace(' ', '').replace('€', '').replace('$', '')
         if len(current_filter) != 0 and price.isdigit():
             price_range_match_found = False
@@ -192,18 +239,52 @@ class TelegramMenu:
         self.user_manager = user_manager
 
         # Main menu buttons
-        main_keyboard = [[KeyboardButton(text='Фильтры'), KeyboardButton(text='Контакты')]]
+        main_keyboard = [
+            [KeyboardButton(text='Фильтры'),
+             KeyboardButton(text='Включить / Выключить'),
+             KeyboardButton(text='Очистить все фильтры'),
+             KeyboardButton(text='Контакты')]
+        ]
         self.reply_markup = ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+    def generate_buttons(self, keyboard: list, user_id: str, filter_name: str) -> InlineKeyboardMarkup:
+
+        current_filters = self.user_manager.get_field(user_id, filter_name)
+        for current_filter in current_filters:
+            for key in keyboard:
+                if current_filter == key.text:
+                    keyboard.remove(key)
+
+        keyboard_list = []
+        for key in keyboard:
+            keyboard_list.append([key])
+
+        return InlineKeyboardMarkup(keyboard_list + SECONDARY_MENU)
 
     def menu_message(self, update, context) -> None:
 
         user_message = update.message.text.upper()
         user_id = update.effective_chat.id
 
-        current_step = self.user_manager.get_current_step(user_id)
+        current_step = self.user_manager.get_field(user_id, 'current_step')
 
         if user_message == 'ФИЛЬТРЫ':
             update.message.reply_text('Выберите фильтр для настройки', reply_markup=InlineKeyboardMarkup(MAIN_MENU))
+        elif user_message == 'ВКЛЮЧИТЬ / ВЫКЛЮЧИТЬ':
+            user_active = not self.user_manager.get_field(user_id, 'active')
+            self.user_manager.set_field(user_id, 'active', user_active)
+            # Info message
+            if user_active:
+                message_text = '✅ Получение объявлений включено'
+            else:
+                message_text = '⛔️ Получение объявлений приостановлено'
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text=message_text)
+        elif user_message == 'ОЧИСТИТЬ ВСЕ ФИЛЬТРЫ':
+            self.user_manager.reset_user(update.effective_chat)
+            # Info message
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text='Все фильтры очищены')
         elif user_message == 'КОНТАКТЫ':
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text="Создатель бота - @bobtb")
@@ -213,73 +294,17 @@ class TelegramMenu:
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text="Я не знаю такой команды")
 
-    def brand_button(self, update, context) -> None:
-
-        query = update.callback_query
-        query.answer()
-        query.edit_message_text(
-            text='Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (Пример: BMW 5 series)',
-            reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
-        self.user_manager.set_current_step(FILTER_BRAND, update.effective_chat.id)
-
-    def year_button(self, update, context) -> None:
-
-        query = update.callback_query
-        query.answer()
-        query.edit_message_text(text='Введите год или интервал (Пример: 2010 ИЛИ 1990-2010)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
-        self.user_manager.set_current_step(FILTER_YEAR, update.effective_chat.id)
-
-    def registration_button(self, update, context) -> None:
-
-        if update.callback_query.data == 'm3_1':
-            self.user_manager.set_filter(update.effective_chat.id, FILTER_REGISTRATION, ['Республика Молдова'])
-        elif update.callback_query.data == 'm3_2':
-            self.user_manager.set_filter(update.effective_chat.id, FILTER_REGISTRATION, ['Приднестровье'])
-        elif update.callback_query.data == 'm3_3':
-            self.user_manager.set_filter(update.effective_chat.id, FILTER_REGISTRATION, ['Другое'])
-
-        query = update.callback_query
-        query.answer()
-
-        query.edit_message_text(text='Выберите фильтр по регистрации автомобиля:',
-                                reply_markup=self.generate_registration_buttons(update.effective_chat.id))
-        self.user_manager.set_current_step(FILTER_REGISTRATION, update.effective_chat.id)
-
-    def generate_registration_buttons(self, user_id: str) -> InlineKeyboardMarkup:
-
-        keyboard = [
-            InlineKeyboardButton('Молдова', callback_data='m3_1'),
-            InlineKeyboardButton('ПМР', callback_data='m3_2'),
-            InlineKeyboardButton('Другое', callback_data='m3_3')
-        ]
-
-        current_filters = self.user_manager.get_filter(user_id, FILTER_REGISTRATION)
-        for key in keyboard:
-            if key.text in current_filters:
-                keyboard.remove(key)
-
-        return InlineKeyboardMarkup([keyboard, SECONDARY_MENU[0], SECONDARY_MENU[1], SECONDARY_MENU[2]])
-
-    def price_button(self, update, context) -> None:
-
-        query = update.callback_query
-        query.answer()
-        query.edit_message_text(text='Введите диапазон цен в € (Пример: 10000-15000)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
-        self.user_manager.set_current_step(FILTER_PRICE, update.effective_chat.id)
-
     def message_handler(self, user_id: str, user_message: str, current_step: str) -> None:
 
         if current_step == FILTER_BRAND:
-            filters_brand = self.user_manager.get_filter(user_id, FILTER_BRAND)
+            filters_brand = self.user_manager.get_field(user_id, FILTER_BRAND)
             if filters_brand is None:
                 filters_brand = [user_message]
             elif user_message not in filters_brand:
                 filters_brand.append(user_message)
             self.user_manager.set_filter(user_id, FILTER_BRAND, filters_brand)
         elif current_step == FILTER_YEAR:
-            filters_year = self.user_manager.get_filter(user_id, FILTER_YEAR)
+            filters_year = self.user_manager.get_field(user_id, FILTER_YEAR)
             current_filter = user_message.replace(' ', '')
             # Checking if user introduced interval
             if current_filter.find('-') != -1:
@@ -297,11 +322,208 @@ class TelegramMenu:
                 filters_year.append(user_message)
             self.user_manager.set_filter(user_id, FILTER_YEAR, filters_year)
         elif current_step == FILTER_PRICE:
-            filters_price = self.user_manager.get_filter(user_id, FILTER_PRICE)
+            filters_price = self.user_manager.get_field(user_id, FILTER_PRICE)
             current_filter = user_message.replace(' ', '')
             if current_filter.find('-') != -1 and current_filter not in filters_price:
                 filters_price.append(current_filter)
                 self.user_manager.set_filter(user_id, FILTER_PRICE, filters_price)
+
+    def brand_button(self, update, context) -> None:
+
+        query = update.callback_query
+        query.answer()
+        query.edit_message_text(text='Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (Пример: BMW 5 series)',
+                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', update.effective_chat.id)
+
+    def year_button(self, update, context) -> None:
+
+        query = update.callback_query
+        query.answer()
+        query.edit_message_text(text='Введите год или интервал (Пример: 2010 ИЛИ 1990-2010)',
+                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_YEAR)
+
+    def registration_button(self, update, context) -> None:
+
+        user_id = update.effective_chat.id
+        current_filters = self.user_manager.get_field(user_id, FILTER_REGISTRATION)
+
+        if update.callback_query.data == 'm3_1':
+            current_filters.append('Республика Молдова')
+        elif update.callback_query.data == 'm3_2':
+            current_filters.append('Приднестровье')
+        elif update.callback_query.data == 'm3_3':
+            current_filters.append('Другое')
+
+        self.user_manager.set_filter(user_id, FILTER_REGISTRATION, current_filters)
+
+        keyboard = [
+            InlineKeyboardButton('Республика Молдова', callback_data='m3_1'),
+            InlineKeyboardButton('Приднестровье', callback_data='m3_2'),
+            InlineKeyboardButton('Другое', callback_data='m3_3')
+        ]
+        query = update.callback_query
+        query.answer()
+
+        query.edit_message_text(text='Выберите варианты регистрации автомобиля:',
+                                reply_markup=self.generate_buttons(keyboard, user_id, FILTER_REGISTRATION))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_REGISTRATION)
+
+    def price_button(self, update, context) -> None:
+
+        query = update.callback_query
+        query.answer()
+        query.edit_message_text(text='Введите диапазон цен в € (Пример: 10000-15000; 0-5600)',
+                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_PRICE)
+
+    def fuel_button(self, update, context) -> None:
+
+        user_id = update.effective_chat.id
+        current_filters = self.user_manager.get_field(user_id, FILTER_FUEL_TYPE)
+
+        if update.callback_query.data == 'm5_1':
+            current_filters.append('Бензин')
+        elif update.callback_query.data == 'm5_2':
+            current_filters.append('Дизель')
+        elif update.callback_query.data == 'm5_3':
+            current_filters.append('Газ / Бензин (пропан)')
+        elif update.callback_query.data == 'm5_4':
+            current_filters.append('Газ / Бензин (метан)')
+        elif update.callback_query.data == 'm5_5':
+            current_filters.append('Гибрид')
+        elif update.callback_query.data == 'm5_6':
+            current_filters.append('Плагин-гибрид')
+        elif update.callback_query.data == 'm5_7':
+            current_filters.append('Электричество')
+        elif update.callback_query.data == 'm5_8':
+            current_filters.append('Газ')
+
+        self.user_manager.set_filter(user_id, FILTER_FUEL_TYPE, current_filters)
+
+        keyboard = [
+            InlineKeyboardButton('Бензин', callback_data='m5_1'),
+            InlineKeyboardButton('Дизель', callback_data='m5_2'),
+            InlineKeyboardButton('Газ / Бензин (пропан)', callback_data='m5_3'),
+            InlineKeyboardButton('Газ / Бензин (метан)', callback_data='m5_4'),
+            InlineKeyboardButton('Гибрид', callback_data='m5_5'),
+            InlineKeyboardButton('Плагин-гибрид', callback_data='m5_6'),
+            InlineKeyboardButton('Электричество', callback_data='m5_7'),
+            InlineKeyboardButton('Газ', callback_data='m5_8')
+        ]
+
+        query = update.callback_query
+        query.answer()
+
+        query.edit_message_text(text='Выберите типы топлива:',
+                                reply_markup=self.generate_buttons(keyboard, user_id, FILTER_FUEL_TYPE))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_FUEL_TYPE)
+
+    def transmission_button(self, update, context) -> None:
+
+        user_id = update.effective_chat.id
+        current_filters = self.user_manager.get_field(user_id, FILTER_TRANSMISSION)
+
+        if update.callback_query.data == 'm6_1':
+            current_filters.append('Механическая')
+        elif update.callback_query.data == 'm6_2':
+            current_filters.append('Роботизированная')
+        elif update.callback_query.data == 'm6_3':
+            current_filters.append('Автоматическая')
+        elif update.callback_query.data == 'm6_4':
+            current_filters.append('Вариатор')
+
+        self.user_manager.set_filter(user_id, FILTER_TRANSMISSION, current_filters)
+
+        keyboard = [
+            InlineKeyboardButton('Механическая', callback_data='m6_1'),
+            InlineKeyboardButton('Роботизированная', callback_data='m6_2'),
+            InlineKeyboardButton('Автоматическая', callback_data='m6_3'),
+            InlineKeyboardButton('Вариатор', callback_data='m6_4')
+        ]
+
+        query = update.callback_query
+        query.answer()
+
+        query.edit_message_text(text='Выберите фильтр по регистрации автомобиля:',
+                                reply_markup=self.generate_buttons(keyboard, user_id, FILTER_TRANSMISSION))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_TRANSMISSION)
+
+    def condition_button(self, update, context) -> None:
+
+        user_id = update.effective_chat.id
+        current_filters = self.user_manager.get_field(user_id, FILTER_CONDITION)
+
+        if update.callback_query.data == 'm7_1':
+            current_filters.append('Новый')
+        elif update.callback_query.data == 'm7_2':
+            current_filters.append('С пробегом')
+        elif update.callback_query.data == 'm7_3':
+            current_filters.append('Требует ремонта')
+
+        self.user_manager.set_filter(user_id, FILTER_CONDITION, current_filters)
+
+        keyboard = [
+            InlineKeyboardButton('Новый', callback_data='m7_1'),
+            InlineKeyboardButton('С пробегом', callback_data='m7_2'),
+            InlineKeyboardButton('Требует ремонта', callback_data='m7_3')
+        ]
+
+        query = update.callback_query
+        query.answer()
+
+        query.edit_message_text(text='Выберите варианты состояния:',
+                                reply_markup=self.generate_buttons(keyboard, user_id, FILTER_CONDITION))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_CONDITION)
+
+    def author_button(self, update, context) -> None:
+
+        user_id = update.effective_chat.id
+        current_filters = self.user_manager.get_field(user_id, FILTER_AUTHOR_TYPE)
+
+        if update.callback_query.data == 'm8_1':
+            current_filters.append('Частное лицо')
+        elif update.callback_query.data == 'm8_2':
+            current_filters.append('Автодилер')
+
+        self.user_manager.set_filter(user_id, FILTER_AUTHOR_TYPE, current_filters)
+
+        keyboard = [
+            InlineKeyboardButton('Частное лицо', callback_data='m8_1'),
+            InlineKeyboardButton('Автодилер', callback_data='m8_2')
+        ]
+
+        query = update.callback_query
+        query.answer()
+
+        query.edit_message_text(text='Выберите варианты авторов объявлений:',
+                                reply_markup=self.generate_buttons(keyboard, user_id, FILTER_AUTHOR_TYPE))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_AUTHOR_TYPE)
+
+    def wheel_button(self, update, context) -> None:
+
+        user_id = update.effective_chat.id
+        current_filters = self.user_manager.get_field(user_id, FILTER_WHEEL)
+
+        if update.callback_query.data == 'm9_1':
+            current_filters.append('Левый')
+        elif update.callback_query.data == 'm9_2':
+            current_filters.append('Правый')
+
+        self.user_manager.set_filter(user_id, FILTER_WHEEL, current_filters)
+
+        keyboard = [
+            InlineKeyboardButton('Левый', callback_data='m9_1'),
+            InlineKeyboardButton('Правый', callback_data='m9_2')
+        ]
+
+        query = update.callback_query
+        query.answer()
+
+        query.edit_message_text(text='Выберите вариант расположения руля:',
+                                reply_markup=self.generate_buttons(keyboard, user_id, FILTER_WHEEL))
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_WHEEL)
 
 
 class TelegramSecondaryMenu:
@@ -313,10 +535,10 @@ class TelegramSecondaryMenu:
     def all_filters_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_step = self.user_manager.get_current_step(user_id)
+        current_step = self.user_manager.get_field(user_id, 'current_step')
 
-        current_filters = self.user_manager.get_filter(user_id, current_step)
-        if current_filters is None:
+        current_filters = self.user_manager.get_field(user_id, current_step)
+        if current_filters is None or len(current_filters) == 0:
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text="Нет установленных фильтров")
         else:
@@ -329,7 +551,7 @@ class TelegramSecondaryMenu:
     def clear_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_step = self.user_manager.get_current_step(user_id)
+        current_step = self.user_manager.get_field(user_id, 'current_step')
         empty_filter = []
         self.user_manager.set_filter(user_id, current_step, empty_filter)
 
@@ -343,7 +565,7 @@ class TelegramSecondaryMenu:
 
         query.edit_message_text(text='Выберите фильтр для настройки',
                                 reply_markup=InlineKeyboardMarkup(MAIN_MENU))
-        self.user_manager.set_current_step('', update.effective_chat.id)
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', '')
 
 
 class TelegramHandlers:
@@ -356,17 +578,9 @@ class TelegramHandlers:
 
     def start(self, update, context) -> None:
 
-        # Adding user ID
+        # Creating user with empty filters
         current_user = update.effective_chat
-        user_info = {"user_id": current_user.id,
-                     "full_name": current_user.full_name,
-                     "link": current_user.link,
-                     "current_step": "",
-                     FILTER_BRAND: [],
-                     FILTER_YEAR: [],
-                     FILTER_REGISTRATION: [],
-                     FILTER_PRICE: []}
-        self.user_manager.add_user(user_info)
+        self.user_manager.create_user(current_user)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text="Привет! Настрой фильтры и я буду присылать тебе все новые объявления о продаже автомобилей с 999.md",
@@ -374,7 +588,7 @@ class TelegramHandlers:
 
     def stop(self, update, context) -> None:
 
-        self.user_manager.remove_user(update.effective_chat.id)
+        self.user_manager.delete_user(update.effective_chat.id)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text='Чтобы опять получать уведомления - введи /start и настрой фильтры')

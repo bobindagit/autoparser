@@ -16,7 +16,7 @@ def get_value(soup: BeautifulSoup, value_title: str) -> str:
 
 def link_exists(link: str, db_all_data) -> bool:
 
-    return db_all_data.find({'Link': link}).retrieved > 0
+    return db_all_data.find({'Link': link}).count() > 0
 
 
 async def get_link_data(session, link: str) -> dict:
@@ -54,14 +54,18 @@ async def get_link_data(session, link: str) -> dict:
         # Locality
         locality = soup.find('meta', itemprop='addressLocality').get('content')
         # Contacts
-        contacts = []
-        all_contacts = soup.find('dl', class_='adPage__content__phone grid_18').find_all('a')
-        for current_contact in all_contacts:
-            contacts.append(current_contact.get('href').replace('tel:+373', ''))
+        # If ad was deleted - contacts will be hide
+        try:
+            contacts = []
+            all_contacts = soup.find('dl', class_='adPage__content__phone grid_18').find_all('a')
+            for current_contact in all_contacts:
+                contacts.append(current_contact.get('href').replace('tel:+373', ''))
+        except:
+            contacts = []
         # Image
         try:
             image_link = soup.find('div', id='js-ad-photos', class_='slick-cont-full grid_18').find('div', class_='slick-cont-full-item js-item').find('img').get('src')
-        except Exception:
+        except:
             image_link = 'https://www.carfitexperts.com/car-models/wp-content/uploads/2019/01/zen-1.jpg'
 
         return {

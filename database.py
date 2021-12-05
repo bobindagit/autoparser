@@ -14,8 +14,8 @@ class Database:
             file.close()
 
         # Getting all resources
-        self.db_user_info = client.user_info['user_info']
-        self.db_all_data = client.all_data['all_data']
+        self.db_user_info = client.auto_parser['user_info']
+        self.db_all_data = client.auto_parser['all_data']
 
 
 if __name__ == '__main__':
