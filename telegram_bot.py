@@ -2,7 +2,7 @@ import json
 import requests
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
-from telegram import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 
 # Filter names
 FILTER_BRAND = 'filter_brand'
@@ -32,7 +32,7 @@ MAIN_MENU = [
 SECONDARY_MENU = [
             [InlineKeyboardButton('✅ Установленные', callback_data='filter_list')],
             [InlineKeyboardButton('❌ Очистить', callback_data='filter_clear')],
-            [InlineKeyboardButton('◀️ Главное меню', callback_data='back')]
+            [InlineKeyboardButton('◀️ Назад', callback_data='back')]
         ]
 
 
@@ -117,19 +117,12 @@ class UserManager:
         # Saving service fields
         current_step = self.get_field(user_id, 'current_step')
         active = self.get_field(user_id, 'active')
+        # Reset of the user
         self.delete_user(user_id)
         self.create_user(current_user)
+        # Restore of service fields
         self.set_field(user_id, 'current_step', current_step)
         self.set_field(user_id, 'active', active)
-
-    # def set_field(self, user_id: str, field_name: str, new_value: str) -> None:
-    #     if field_name.find('filter') == -1:
-    #         value_to_update = {"$set": {field_name: new_value}}
-    #     else:
-    #         current_value = self.get_field(user_id, field_name)
-    #
-    #     # value_to_update = {"$set": {"current_step": current_step}}
-    #     # self.db_user_info.update({'user_id': user_id}, value_to_update)
 
     def get_field(self, user_id: str, field_name: str) -> str | bool | list:
         return self.db_user_info.find({'user_id': user_id})[0].get(field_name)
@@ -138,9 +131,12 @@ class UserManager:
         value_to_update = {"$set": {field_name: new_value}}
         self.db_user_info.update({'user_id': user_id}, value_to_update)
 
-    def set_filter(self, user_id: str, filter_name: str, new_value: list) -> None:
-        value_to_update = {"$set": {filter_name: new_value}}
-        self.db_user_info.update({'user_id': user_id}, value_to_update)
+    def set_filter(self, user_id: str, filter_name: str, value_to_add: str) -> None:
+        current_filter = self.get_field(user_id, filter_name)
+        if value_to_add not in current_filter:
+            current_filter.append(value_to_add)
+            value_to_update = {"$set": {filter_name: current_filter}}
+            self.db_user_info.update({'user_id': user_id}, value_to_update)
 
     def generate_html_message(self, info: dict) -> dict:
 
@@ -269,7 +265,8 @@ class TelegramMenu:
         current_step = self.user_manager.get_field(user_id, 'current_step')
 
         if user_message == 'ФИЛЬТРЫ':
-            update.message.reply_text('Выберите фильтр для настройки', reply_markup=InlineKeyboardMarkup(MAIN_MENU))
+            update.message.reply_text('Выберите фильтр для настройки',
+                                      reply_markup=InlineKeyboardMarkup(MAIN_MENU))
         elif user_message == 'ВКЛЮЧИТЬ / ВЫКЛЮЧИТЬ':
             user_active = not self.user_manager.get_field(user_id, 'active')
             self.user_manager.set_field(user_id, 'active', user_active)
@@ -296,52 +293,59 @@ class TelegramMenu:
 
     def message_handler(self, user_id: str, user_message: str, current_step: str) -> None:
 
+        # Empty message
+        if len(user_message) == 0:
+            return
+
         if current_step == FILTER_BRAND:
-            filters_brand = self.user_manager.get_field(user_id, FILTER_BRAND)
-            if filters_brand is None:
-                filters_brand = [user_message]
-            elif user_message not in filters_brand:
-                filters_brand.append(user_message)
-            self.user_manager.set_filter(user_id, FILTER_BRAND, filters_brand)
+            self.user_manager.set_filter(user_id, current_step, user_message)
         elif current_step == FILTER_YEAR:
-            filters_year = self.user_manager.get_field(user_id, FILTER_YEAR)
-            current_filter = user_message.replace(' ', '')
-            # Checking if user introduced interval
-            if current_filter.find('-') != -1:
-                current_filters = current_filter.split('-')
-                first_year = current_filters[0]
-                second_year = current_filters[1]
-                years_interval = []
-                if first_year.isdigit() and second_year.isdigit():
-                    for i in range(int(first_year), int(second_year) + 1):
-                        years_interval.append(str(i))
-                    for year in years_interval:
-                        if year not in filters_year:
-                            filters_year.append(year)
+            # Removing all spaces
+            year = user_message.replace(' ', '')
+            # If user introduced interval
+            if year.find('-') != -1:
+                years_interval = year.split('-')
+                year_from = years_interval[0]
+                # If user didn't introduced second year in the interval
+                if not years_interval[1]:
+                    year_to = '2025'
+                else:
+                    year_to = years_interval[1]
+                if year_from.isdigit() and year_to.isdigit():
+                    for i in range(int(year_from), int(year_to) + 1):
+                        self.user_manager.set_filter(user_id, current_step, i)
             else:
-                filters_year.append(user_message)
-            self.user_manager.set_filter(user_id, FILTER_YEAR, filters_year)
+                self.user_manager.set_filter(user_id, current_step, year)
         elif current_step == FILTER_PRICE:
-            filters_price = self.user_manager.get_field(user_id, FILTER_PRICE)
-            current_filter = user_message.replace(' ', '')
-            if current_filter.find('-') != -1 and current_filter not in filters_price:
-                filters_price.append(current_filter)
-                self.user_manager.set_filter(user_id, FILTER_PRICE, filters_price)
+            # Removing all spaces
+            price = user_message.replace(' ', '')
+            if price.find('-') != -1:
+                price_interval = price.split('-')
+                price_from = price_interval[0]
+                # If user didn't introduced second price in the interval
+                if not price_interval[1]:
+                    price_to = '999999'
+                else:
+                    price_to = price_interval[1]
+                if price_from.isdigit() and price_to.isdigit():
+                    self.user_manager.set_filter(user_id, current_step, price_from + '-' + price_to)
 
     def brand_button(self, update, context) -> None:
 
         query = update.callback_query
         query.answer()
-        query.edit_message_text(text='Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (Пример: BMW 5 series)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
-        self.user_manager.set_field(update.effective_chat.id, 'current_step', update.effective_chat.id)
+        query.edit_message_text(text=f'Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (<b>Пример: BMW 5 series</b>)',
+                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU),
+                                parse_mode=ParseMode.HTML)
+        self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_BRAND)
 
     def year_button(self, update, context) -> None:
 
         query = update.callback_query
         query.answer()
-        query.edit_message_text(text='Введите год или интервал (Пример: 2010 ИЛИ 1990-2010)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
+        query.edit_message_text(text=f'Введите год или интервал (<b>Пример: 2010 ИЛИ 1990-2010 ИЛИ 2015-</b>)',
+                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU),
+                                parse_mode=ParseMode.HTML)
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_YEAR)
 
     def registration_button(self, update, context) -> None:
@@ -374,8 +378,9 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-        query.edit_message_text(text='Введите диапазон цен в € (Пример: 10000-15000; 0-5600)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU))
+        query.edit_message_text(text=f'Введите диапазон цен в € (<b>Пример: 10000-15000 ИЛИ 0-5600 ИЛИ 55000-</b>)',
+                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU),
+                                parse_mode=ParseMode.HTML)
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_PRICE)
 
     def fuel_button(self, update, context) -> None:
@@ -553,7 +558,7 @@ class TelegramSecondaryMenu:
         user_id = update.effective_chat.id
         current_step = self.user_manager.get_field(user_id, 'current_step')
         empty_filter = []
-        self.user_manager.set_filter(user_id, current_step, empty_filter)
+        self.user_manager.set_field(user_id, current_step, empty_filter)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text="Фильтр очищен")
