@@ -17,29 +17,28 @@ FILTER_WHEEL = 'filter_wheel'
 
 # Main menu
 MAIN_MENU = [
-            [InlineKeyboardButton('Марка', callback_data='m1')],
-            [InlineKeyboardButton('Год выпуска', callback_data='m2')],
-            [InlineKeyboardButton('Регистрация', callback_data='m3')],
-            [InlineKeyboardButton('Цена', callback_data='m4')],
-            [InlineKeyboardButton('Тип топлива', callback_data='m5')],
-            [InlineKeyboardButton('Тип КПП', callback_data='m6')],
-            [InlineKeyboardButton('Состояние', callback_data='m7')],
-            [InlineKeyboardButton('Автор объявления', callback_data='m8')],
-            [InlineKeyboardButton('Руль', callback_data='m9')],
-        ]
+    [InlineKeyboardButton('Марка', callback_data='m1')],
+    [InlineKeyboardButton('Год выпуска', callback_data='m2')],
+    [InlineKeyboardButton('Регистрация', callback_data='m3')],
+    [InlineKeyboardButton('Цена', callback_data='m4')],
+    [InlineKeyboardButton('Тип топлива', callback_data='m5')],
+    [InlineKeyboardButton('Тип КПП', callback_data='m6')],
+    [InlineKeyboardButton('Состояние', callback_data='m7')],
+    [InlineKeyboardButton('Автор объявления', callback_data='m8')],
+    [InlineKeyboardButton('Руль', callback_data='m9')],
+]
 
 # Secondary menu
 SECONDARY_MENU = [
-            [InlineKeyboardButton('✅ Установленные', callback_data='filter_list')],
-            [InlineKeyboardButton('❌ Очистить', callback_data='filter_clear')],
-            [InlineKeyboardButton('◀️ Назад', callback_data='back')]
-        ]
+    [InlineKeyboardButton('✅ Установленные', callback_data='filter_list')],
+    [InlineKeyboardButton('❌ Очистить', callback_data='filter_clear')],
+    [InlineKeyboardButton('◀️ Назад', callback_data='back')]
+]
 
 
 class TelegramBot:
 
     def __init__(self, db_user_info):
-
         # Reading file and getting settings
         with open('settings.json', 'r') as file:
             file_data = json.load(file)
@@ -92,22 +91,27 @@ class UserManager:
         self.db_user_info = db_user_info
         self.updater = updater
 
+    def user_exists(self, user_id: str) -> bool:
+        return self.db_user_info.find({'user_id': user_id}).count() > 0
+
     def create_user(self, current_user: telegram.Chat) -> None:
-        user_info = {'user_id': current_user.id,
-                     'full_name': current_user.full_name,
-                     'link': current_user.link,
-                     'current_step': '',
-                     'active': False,
-                     FILTER_BRAND: [],
-                     FILTER_YEAR: [],
-                     FILTER_REGISTRATION: [],
-                     FILTER_PRICE: [],
-                     FILTER_FUEL_TYPE: [],
-                     FILTER_TRANSMISSION: [],
-                     FILTER_CONDITION: [],
-                     FILTER_AUTHOR_TYPE: [],
-                     FILTER_WHEEL: []}
-        self.db_user_info.update({'user_id': current_user.id}, user_info, upsert=True)
+        # User could clear chat and press Start button again
+        if not self.user_exists(current_user.id):
+            user_info = {'user_id': current_user.id,
+                         'full_name': current_user.full_name,
+                         'link': current_user.link,
+                         'current_step': '',
+                         'active': True,
+                         FILTER_BRAND: [],
+                         FILTER_YEAR: [],
+                         FILTER_REGISTRATION: [],
+                         FILTER_PRICE: [],
+                         FILTER_FUEL_TYPE: [],
+                         FILTER_TRANSMISSION: [],
+                         FILTER_CONDITION: [],
+                         FILTER_AUTHOR_TYPE: [],
+                         FILTER_WHEEL: []}
+            self.db_user_info.update({'user_id': current_user.id}, user_info, upsert=True)
 
     def delete_user(self, user_id: str) -> None:
         self.db_user_info.remove({'user_id': user_id})
@@ -148,17 +152,17 @@ class UserManager:
         session = requests.Session()
         html_img = session.get(url=info.get('Image'), headers=headers)
 
-        title = f'<b>{info.get("Title")} {info.get("Year")}</b> ({info.get("Price")} €)'
+        title = f'{info.get("Title")} {info.get("Year")} ({info.get("Price")} €)'
+        title_link = f'<i><a href="{info.get("Link")}"><b>{title}</b></a></i>'
         contacts = ''
         for contact in info.get('Contacts'):
             contacts += contact + '; '
-        link = f'<i><a href="{info.get("Link")}"> *** ССЫЛКА *** </a></i>'
-        html_message = f'{title}' \
-                       f'\n┌ Мотор: {info.get("Engine")}; {info.get("Fuel_type")}' \
-                       f'\n├ Пробег: {info.get("Mileage")}; КПП: {info.get("Transmission")}' \
-                       f'\n├ {info.get("Locality")}' \
-                       f'\n└ Контакты: {contacts.strip()}' \
-                       f'\n{link}'
+        html_message = f'{title_link}' \
+                       f'\n┌ <b>Двигатель</b>: {info.get("Engine")}; {info.get("Fuel_type")}' \
+                       f'\n├ <b>КПП</b>: {info.get("Transmission")}' \
+                       f'\n├ <b>Пробег</b>: {info.get("Mileage")}' \
+                       f'\n├ <b>Регион</b>: {info.get("Locality")}' \
+                       f'\n└ <b>Контакты</b>: {contacts.strip()}' \
 
         return {'img': html_img.content,
                 'message': html_message}
@@ -169,19 +173,26 @@ class UserManager:
         img = message_info.get('img')
         img_caption = message_info.get('message')
 
-        for user_info in db_user_info.find():
-            # Check if user has filters and current info matches user filters
+        for user_info in db_user_info.find({'active': True}):
 
-            if (len(user_info.get(FILTER_BRAND)) != 0
-                or len(user_info.get(FILTER_REGISTRATION)) != 0
-                or len(user_info.get(FILTER_YEAR)) != 0
-                or len(user_info.get(FILTER_PRICE)) != 0) \
-                    and self.info_matches_filters(info, user_info):
-                chat_id = user_info.get('user_id')
-                self.updater.bot.send_photo(chat_id=chat_id,
+            # User should have installed at least 1 filter
+            if (len(user_info.get(FILTER_BRAND)) == 0
+                    and len(user_info.get(FILTER_YEAR)) == 0
+                    and len(user_info.get(FILTER_REGISTRATION)) == 0
+                    and len(user_info.get(FILTER_PRICE)) == 0
+                    and len(user_info.get(FILTER_FUEL_TYPE)) == 0
+                    and len(user_info.get(FILTER_TRANSMISSION)) == 0
+                    and len(user_info.get(FILTER_CONDITION)) == 0
+                    and len(user_info.get(FILTER_AUTHOR_TYPE)) == 0
+                    and len(user_info.get(FILTER_WHEEL)) == 0):
+                continue
+
+            # Check if current info matches user filters
+            if self.info_matches_filters(info, user_info):
+                self.updater.bot.send_photo(chat_id=user_info.get('user_id'),
                                             photo=img,
                                             caption=img_caption,
-                                            parse_mode='HTML')
+                                            parse_mode=ParseMode.HTML)
 
     def info_matches_filters(self, info: dict, user_info: dict) -> bool:
 
@@ -237,9 +248,8 @@ class TelegramMenu:
         # Main menu buttons
         main_keyboard = [
             [KeyboardButton(text='Фильтры'),
-             KeyboardButton(text='Включить / Выключить'),
-             KeyboardButton(text='Очистить все фильтры'),
-             KeyboardButton(text='Контакты')]
+             KeyboardButton(text='Уведомлять / Не уведомлять'),
+             KeyboardButton(text='Очистить все фильтры')]
         ]
         self.reply_markup = ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -267,24 +277,23 @@ class TelegramMenu:
         if user_message == 'ФИЛЬТРЫ':
             update.message.reply_text('Выберите фильтр для настройки',
                                       reply_markup=InlineKeyboardMarkup(MAIN_MENU))
-        elif user_message == 'ВКЛЮЧИТЬ / ВЫКЛЮЧИТЬ':
+        elif user_message == 'УВЕДОМЛЯТЬ / НЕ УВЕДОМЛЯТЬ':
             user_active = not self.user_manager.get_field(user_id, 'active')
             self.user_manager.set_field(user_id, 'active', user_active)
             # Info message
             if user_active:
-                message_text = '✅ Получение объявлений включено'
+                message_text = '✅ <b>Получение объявлений включено</b> ✅'
             else:
-                message_text = '⛔️ Получение объявлений приостановлено'
+                message_text = '⛔️ <b>Получение объявлений приостановлено</b> ⛔'
             context.bot.send_message(chat_id=update.effective_chat.id,
-                                     text=message_text)
+                                     text=message_text,
+                                     parse_mode=ParseMode.HTML)
         elif user_message == 'ОЧИСТИТЬ ВСЕ ФИЛЬТРЫ':
             self.user_manager.reset_user(update.effective_chat)
             # Info message
             context.bot.send_message(chat_id=update.effective_chat.id,
-                                     text='Все фильтры очищены')
-        elif user_message == 'КОНТАКТЫ':
-            context.bot.send_message(chat_id=update.effective_chat.id,
-                                     text="Создатель бота - @bobtb")
+                                     text='❌ <b>Все фильтры очищены</b> ❌',
+                                     parse_mode=ParseMode.HTML)
         elif len(current_step) != 0:
             self.message_handler(user_id, user_message, current_step)
         else:
@@ -334,9 +343,10 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-        query.edit_message_text(text=f'Вводите марки автомобиля (как на сайте), чтобы добавить фильтр по ним (<b>Пример: BMW 5 series</b>)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU),
-                                parse_mode=ParseMode.HTML)
+        query.edit_message_text(
+            text=f'Введите марку автомобиля (как на сайте, 1 сообщение - 1 фильтр) (<b>Пример: BMW 5 series</b>)',
+            reply_markup=InlineKeyboardMarkup(SECONDARY_MENU),
+            parse_mode=ParseMode.HTML)
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_BRAND)
 
     def year_button(self, update, context) -> None:
@@ -451,7 +461,7 @@ class TelegramMenu:
         query = update.callback_query
         query.answer()
 
-        query.edit_message_text(text='Выберите фильтр по регистрации автомобиля:',
+        query.edit_message_text(text='Выберите типы КПП:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_TRANSMISSION))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_TRANSMISSION)
 
@@ -576,32 +586,33 @@ class TelegramSecondaryMenu:
 class TelegramHandlers:
 
     def __init__(self, user_manager: UserManager, menu: TelegramMenu):
-
         # Initializing menu
         self.menu = menu
         self.user_manager = user_manager
 
     def start(self, update, context) -> None:
-
         # Creating user with empty filters
         current_user = update.effective_chat
         self.user_manager.create_user(current_user)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text="Привет! Настрой фильтры и я буду присылать тебе все новые объявления о продаже автомобилей с 999.md",
-                                 reply_markup=self.menu.reply_markup)
+                                 text=f'👋 <b>Привет, {current_user.full_name}!</b> 👋\n\n'
+                                      f'✳️ Чтобы получать уведомления о продаже автомобилей - настрой фильтры\n'
+                                      f'💰 Удачных и выгодных сделок!\n\n'
+                                      f'❓ <i>Есть вопрос или предложение? Контакт администратора находится в описании бота</i>',
+                                 reply_markup=self.menu.reply_markup,
+                                 parse_mode=ParseMode.HTML)
 
     def stop(self, update, context) -> None:
-
         self.user_manager.delete_user(update.effective_chat.id)
 
         context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text='Чтобы опять получать уведомления - введи /start и настрой фильтры')
+                                 text='Чтобы опять получать уведомления - введите <b>/start</b> и выберите фильтры',
+                                 parse_mode=ParseMode.HTML)
 
     def unknown(self, update, context) -> None:
-
         context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text="Я не знаю такой команды")
+                                 text='Я не знаю такой команды')
 
 
 if __name__ == '__main__':
