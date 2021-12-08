@@ -247,9 +247,9 @@ class TelegramMenu:
 
         # Main menu buttons
         main_keyboard = [
-            [KeyboardButton(text='Фильтры'),
-             KeyboardButton(text='Уведомлять / Не уведомлять'),
-             KeyboardButton(text='Очистить все фильтры')]
+            [KeyboardButton(text='📝 Фильтры'),
+             KeyboardButton(text='🔔 Уведомлять / 🔕 Не уведомлять'),
+             KeyboardButton(text='❌ Очистить все фильтры')]
         ]
         self.reply_markup = ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -274,10 +274,17 @@ class TelegramMenu:
 
         current_step = self.user_manager.get_field(user_id, 'current_step')
 
-        if user_message == 'ФИЛЬТРЫ':
+        if user_message.find('ОЧИСТИТЬ ВСЕ ФИЛЬТРЫ') != -1:
+            self.user_manager.reset_user(update.effective_chat)
+            # Info message
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text='❌ <b>Все фильтры очищены</b> ❌',
+                                     parse_mode=ParseMode.HTML)
+        elif user_message.find('ФИЛЬТРЫ') != -1:
             update.message.reply_text('Выберите фильтр для настройки',
                                       reply_markup=InlineKeyboardMarkup(MAIN_MENU))
-        elif user_message == 'УВЕДОМЛЯТЬ / НЕ УВЕДОМЛЯТЬ':
+        elif user_message.find('УВЕДОМЛЯТЬ') != -1 \
+                and user_message.find('НЕ УВЕДОМЛЯТЬ') != -1:
             user_active = not self.user_manager.get_field(user_id, 'active')
             self.user_manager.set_field(user_id, 'active', user_active)
             # Info message
@@ -287,12 +294,6 @@ class TelegramMenu:
                 message_text = '⛔️ <b>Получение объявлений приостановлено</b> ⛔'
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text=message_text,
-                                     parse_mode=ParseMode.HTML)
-        elif user_message == 'ОЧИСТИТЬ ВСЕ ФИЛЬТРЫ':
-            self.user_manager.reset_user(update.effective_chat)
-            # Info message
-            context.bot.send_message(chat_id=update.effective_chat.id,
-                                     text='❌ <b>Все фильтры очищены</b> ❌',
                                      parse_mode=ParseMode.HTML)
         elif len(current_step) != 0:
             self.message_handler(user_id, user_message, current_step)
@@ -361,16 +362,17 @@ class TelegramMenu:
     def registration_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_filters = self.user_manager.get_field(user_id, FILTER_REGISTRATION)
 
         if update.callback_query.data == 'm3_1':
-            current_filters.append('Республика Молдова')
+            value_to_add = 'Республика Молдова'
         elif update.callback_query.data == 'm3_2':
-            current_filters.append('Приднестровье')
+            value_to_add = 'Приднестровье'
         elif update.callback_query.data == 'm3_3':
-            current_filters.append('Другое')
+            value_to_add = 'Другое'
+        else:
+            value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_REGISTRATION, current_filters)
+        self.user_manager.set_filter(user_id, FILTER_REGISTRATION, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Республика Молдова', callback_data='m3_1'),
@@ -396,26 +398,27 @@ class TelegramMenu:
     def fuel_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_filters = self.user_manager.get_field(user_id, FILTER_FUEL_TYPE)
 
         if update.callback_query.data == 'm5_1':
-            current_filters.append('Бензин')
+            value_to_add = 'Бензин'
         elif update.callback_query.data == 'm5_2':
-            current_filters.append('Дизель')
+            value_to_add = 'Дизель'
         elif update.callback_query.data == 'm5_3':
-            current_filters.append('Газ / Бензин (пропан)')
+            value_to_add = 'Газ / Бензин (пропан)'
         elif update.callback_query.data == 'm5_4':
-            current_filters.append('Газ / Бензин (метан)')
+            value_to_add = 'Газ / Бензин (метан)'
         elif update.callback_query.data == 'm5_5':
-            current_filters.append('Гибрид')
+            value_to_add = 'Гибрид'
         elif update.callback_query.data == 'm5_6':
-            current_filters.append('Плагин-гибрид')
+            value_to_add = 'Плагин-гибрид'
         elif update.callback_query.data == 'm5_7':
-            current_filters.append('Электричество')
+            value_to_add = 'Электричество'
         elif update.callback_query.data == 'm5_8':
-            current_filters.append('Газ')
+            value_to_add = 'Газ'
+        else:
+            value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_FUEL_TYPE, current_filters)
+        self.user_manager.set_filter(user_id, FILTER_FUEL_TYPE, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Бензин', callback_data='m5_1'),
@@ -438,18 +441,19 @@ class TelegramMenu:
     def transmission_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_filters = self.user_manager.get_field(user_id, FILTER_TRANSMISSION)
 
         if update.callback_query.data == 'm6_1':
-            current_filters.append('Механическая')
+            value_to_add = 'Механическая'
         elif update.callback_query.data == 'm6_2':
-            current_filters.append('Роботизированная')
+            value_to_add = 'Роботизированная'
         elif update.callback_query.data == 'm6_3':
-            current_filters.append('Автоматическая')
+            value_to_add = 'Автоматическая'
         elif update.callback_query.data == 'm6_4':
-            current_filters.append('Вариатор')
+            value_to_add = 'Вариатор'
+        else:
+            value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_TRANSMISSION, current_filters)
+        self.user_manager.set_filter(user_id, FILTER_TRANSMISSION, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Механическая', callback_data='m6_1'),
@@ -468,16 +472,17 @@ class TelegramMenu:
     def condition_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_filters = self.user_manager.get_field(user_id, FILTER_CONDITION)
 
         if update.callback_query.data == 'm7_1':
-            current_filters.append('Новый')
+            value_to_add = 'Новый'
         elif update.callback_query.data == 'm7_2':
-            current_filters.append('С пробегом')
+            value_to_add = 'С пробегом'
         elif update.callback_query.data == 'm7_3':
-            current_filters.append('Требует ремонта')
+            value_to_add = 'Требует ремонта'
+        else:
+            value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_CONDITION, current_filters)
+        self.user_manager.set_filter(user_id, FILTER_CONDITION, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Новый', callback_data='m7_1'),
@@ -495,14 +500,15 @@ class TelegramMenu:
     def author_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_filters = self.user_manager.get_field(user_id, FILTER_AUTHOR_TYPE)
 
         if update.callback_query.data == 'm8_1':
-            current_filters.append('Частное лицо')
+            value_to_add = 'Частное лицо'
         elif update.callback_query.data == 'm8_2':
-            current_filters.append('Автодилер')
+            value_to_add = 'Автодилер'
+        else:
+            value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_AUTHOR_TYPE, current_filters)
+        self.user_manager.set_filter(user_id, FILTER_AUTHOR_TYPE, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Частное лицо', callback_data='m8_1'),
@@ -519,14 +525,15 @@ class TelegramMenu:
     def wheel_button(self, update, context) -> None:
 
         user_id = update.effective_chat.id
-        current_filters = self.user_manager.get_field(user_id, FILTER_WHEEL)
 
         if update.callback_query.data == 'm9_1':
-            current_filters.append('Левый')
+            value_to_add = 'Левый'
         elif update.callback_query.data == 'm9_2':
-            current_filters.append('Правый')
+            value_to_add = 'Правый'
+        else:
+            value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_WHEEL, current_filters)
+        self.user_manager.set_filter(user_id, FILTER_WHEEL, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Левый', callback_data='m9_1'),
