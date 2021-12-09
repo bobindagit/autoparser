@@ -92,7 +92,7 @@ class UserManager:
         self.updater = updater
 
     def user_exists(self, user_id: str) -> bool:
-        return self.db_user_info.find({'user_id': user_id}).count() > 0
+        return self.db_user_info.count_documents({'user_id': user_id}) != 0
 
     def create_user(self, current_user: telegram.Chat) -> None:
         # User could clear chat and press Start button again
