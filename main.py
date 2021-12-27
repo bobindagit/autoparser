@@ -1,4 +1,5 @@
 import logging
+import time
 # Modules
 from parser import Parser
 from telegram_bot import TelegramBot
@@ -18,6 +19,7 @@ def main():
     telegram_bot = TelegramBot(database.db_user_info)
 
     while True:
+        time.sleep(5)
         new_info = parser.start_parsing()
         for info in new_info:
             current_link = info.get('Link')
