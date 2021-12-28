@@ -25,7 +25,7 @@ def main():
             ids_to_delete = []
             for i in range(100):
                 ids_to_delete.append(database.db_all_data.find()[i].get('_id'))
-            database.db_all_data.remove({'_id': {'$in': ids_to_delete}})
+            database.db_all_data.delete_many({'_id': {'$in': ids_to_delete}})
         new_info = parser.start_parsing()
         for info in new_info:
             current_link = info.get('Link')
