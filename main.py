@@ -20,7 +20,7 @@ def main():
 
     while True:
         time.sleep(10)
-        links_count = database.db_all_data.count_documents()
+        links_count = database.db_all_data.count()
         if links_count > 200:
             ids_to_delete = []
             for i in range(100):
