@@ -105,8 +105,8 @@ class Parser:
 
     async def gather_data(self) -> list:
 
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            response = await session.get(self.main_url, ssl=False)
+        async with aiohttp.ClientSession(headers=self.headers, trust_env=True) as session:
+            response = await session.get(self.main_url)
             soup = BeautifulSoup(await response.text(), 'lxml')
 
             tasks = []

@@ -19,7 +19,13 @@ def main():
     telegram_bot = TelegramBot(database.db_user_info)
 
     while True:
-        time.sleep(5)
+        time.sleep(10)
+        links_count = database.db_all_data.count_documents()
+        if links_count > 200:
+            ids_to_delete = []
+            for i in range(100):
+                ids_to_delete.append(database.db_all_data.find()[i].get('_id'))
+            database.db_all_data.remove({'_id': {'$in': ids_to_delete}})
         new_info = parser.start_parsing()
         for info in new_info:
             current_link = info.get('Link')
