@@ -43,11 +43,11 @@ async def get_link_data(session, link: str) -> dict:
         prices = soup.find('ul', class_='adPage__content__price-feature__prices')
         if prices.find('li', class_='adPage__content__price-feature__prices__price is-negotiable') is None:
             # Finding price in EURO
+            price = '-'
             for price_row in soup.find('ul', class_='adPage__content__price-feature__prices').find_all('li'):
-                if price_row.find('span',
-                                  class_='adPage__content__price-feature__prices__price__currency').text == ' € ':
-                    price = price_row.find('span',
-                                           class_='adPage__content__price-feature__prices__price__value').text.replace(' ', '')
+                current_price_currency = price_row.find('span', class_='adPage__content__price-feature__prices__price__currency').text
+                if current_price_currency.find('€') != -1:
+                    price = price_row.find('span', class_='adPage__content__price-feature__prices__price__value').text.replace(' ', '')
                     break
         else:
             price = 'Договорная'
