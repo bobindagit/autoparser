@@ -48,7 +48,7 @@ def generate_current_filters_message(user_manager, user_id: str) -> str:
                    {'name': FILTER_AUTHOR_TYPE, 'title': '\n▶️<b>АВТОР ОБЪЯВЛЕНИЯ: </b>'},
                    {'name': FILTER_WHEEL, 'title': '\n▶️<b>РУЛЬ: </b>'}]
 
-    message = '✅<b>УСТАНОВЛЕННЫЕ ФИЛЬТРЫ</b>✅\n'
+    message = '✅ <b>УСТАНОВЛЕННЫЕ ФИЛЬТРЫ</b> ✅\n'
     for auto_filter in all_filters:
         current_filters = user_manager.get_field(user_id, auto_filter.get('name'))
         if current_filters is not None and len(current_filters) != 0:
@@ -401,7 +401,8 @@ class TelegramMenu:
         else:
             value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_REGISTRATION, value_to_add)
+        if len(value_to_add) != 0:
+            self.user_manager.set_filter(user_id, FILTER_REGISTRATION, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Республика Молдова', callback_data='m3_1'),
@@ -447,7 +448,8 @@ class TelegramMenu:
         else:
             value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_FUEL_TYPE, value_to_add)
+        if len(value_to_add) != 0:
+            self.user_manager.set_filter(user_id, FILTER_FUEL_TYPE, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Бензин', callback_data='m5_1'),
@@ -482,7 +484,8 @@ class TelegramMenu:
         else:
             value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_TRANSMISSION, value_to_add)
+        if len(value_to_add) != 0:
+            self.user_manager.set_filter(user_id, FILTER_TRANSMISSION, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Механическая', callback_data='m6_1'),
@@ -511,7 +514,8 @@ class TelegramMenu:
         else:
             value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_CONDITION, value_to_add)
+        if len(value_to_add) != 0:
+            self.user_manager.set_filter(user_id, FILTER_CONDITION, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Новый', callback_data='m7_1'),
@@ -537,7 +541,8 @@ class TelegramMenu:
         else:
             value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_AUTHOR_TYPE, value_to_add)
+        if len(value_to_add) != 0:
+            self.user_manager.set_filter(user_id, FILTER_AUTHOR_TYPE, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Частное лицо', callback_data='m8_1'),
@@ -562,7 +567,8 @@ class TelegramMenu:
         else:
             value_to_add = ''
 
-        self.user_manager.set_filter(user_id, FILTER_WHEEL, value_to_add)
+        if len(value_to_add) != 0:
+            self.user_manager.set_filter(user_id, FILTER_WHEEL, value_to_add)
 
         keyboard = [
             InlineKeyboardButton('Левый', callback_data='m9_1'),
