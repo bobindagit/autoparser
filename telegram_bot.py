@@ -93,6 +93,8 @@ def generate_current_filters_message(user_manager, user_id: str) -> str:
         for current_filter in current_filters:
             message += f'{current_filter} | '
 
+    return message
+
 
 class TelegramBot:
 
