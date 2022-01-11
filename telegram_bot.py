@@ -9,6 +9,7 @@ FILTER_BRAND = 'filter_brand'
 FILTER_YEAR = 'filter_year'
 FILTER_REGISTRATION = 'filter_registration'
 FILTER_PRICE = 'filter_price'
+FILTER_PRICE_NEGOTIABLE = 'filter_price_negotiable'
 FILTER_FUEL_TYPE = 'filter_fuel_type'
 FILTER_TRANSMISSION = 'filter_transmission'
 FILTER_CONDITION = 'filter_condition'
@@ -129,6 +130,7 @@ class UserManager:
                          FILTER_YEAR: [],
                          FILTER_REGISTRATION: [],
                          FILTER_PRICE: [],
+                         FILTER_PRICE_NEGOTIABLE: True,
                          FILTER_FUEL_TYPE: [],
                          FILTER_TRANSMISSION: [],
                          FILTER_CONDITION: [],
@@ -243,21 +245,27 @@ class UserManager:
         if len(current_filter) != 0 and info.get('Title') not in current_filter:
             return False
 
-        # PRICES
+        # PRICES (and negotiable price)
         current_filter = self.get_field(user_id, FILTER_PRICE)
+        current_filter_negotiable = self.get_field(user_id, FILTER_PRICE_NEGOTIABLE)
         price = info.get('Price').replace(' ', '').replace('€', '').replace('$', '')
-        if len(current_filter) != 0 and price.isdigit():
-            price_range_match_found = False
-            for price_range in current_filter:
-                price_range_list = price_range.split('-')
-                if len(price_range_list) > 1:
-                    price_from = price_range_list[0]
-                    price_to = price_range_list[1]
-                    if price_from <= price <= price_to:
-                        price_range_match_found = True
-                        break
-            if not price_range_match_found:
+        # If price is negotiable
+        if price.find('Договорная') != 0:
+            if not current_filter_negotiable:
                 return False
+        else:
+            if len(current_filter) != 0 and price.isdigit():
+                price_range_match_found = False
+                for price_range in current_filter:
+                    price_range_list = price_range.split('-')
+                    if len(price_range_list) > 1:
+                        price_from = price_range_list[0]
+                        price_to = price_range_list[1]
+                        if price_from <= price <= price_to:
+                            price_range_match_found = True
+                            break
+                if not price_range_match_found:
+                    return False
 
         return True
 
@@ -409,19 +417,36 @@ class TelegramMenu:
             InlineKeyboardButton('Приднестровье', callback_data='m3_2'),
             InlineKeyboardButton('Другое', callback_data='m3_3')
         ]
+
         query = update.callback_query
         query.answer()
-
         query.edit_message_text(text='Выберите варианты регистрации автомобиля:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_REGISTRATION))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_REGISTRATION)
 
     def price_button(self, update, context) -> None:
 
+        user_id = update.effective_chat.id
+
+        current_filter = self.user_manager.get_field(user_id, FILTER_PRICE_NEGOTIABLE)
+
+        if update.callback_query.data == 'm4_1':
+            current_filter = not current_filter
+            self.user_manager.set_filter(user_id, FILTER_PRICE_NEGOTIABLE, current_filter)
+
+        if current_filter:
+            keyboard = [
+                [InlineKeyboardButton('Выкл. договорные', callback_data='m4_1')]
+            ]
+        else:
+            keyboard = [
+                [InlineKeyboardButton('Вкл. договорные', callback_data='m4_1')]
+            ]
+
         query = update.callback_query
         query.answer()
         query.edit_message_text(text=f'Введите диапазон цен в € (<b>Пример: 10000-15000 ИЛИ 0-5600 ИЛИ 55000-</b>)',
-                                reply_markup=InlineKeyboardMarkup(SECONDARY_MENU),
+                                reply_markup=InlineKeyboardMarkup(keyboard + SECONDARY_MENU),
                                 parse_mode=ParseMode.HTML)
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_PRICE)
 
@@ -464,7 +489,6 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-
         query.edit_message_text(text='Выберите типы топлива:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_FUEL_TYPE))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_FUEL_TYPE)
@@ -496,7 +520,6 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-
         query.edit_message_text(text='Выберите типы КПП:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_TRANSMISSION))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_TRANSMISSION)
@@ -525,7 +548,6 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-
         query.edit_message_text(text='Выберите варианты состояния:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_CONDITION))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_CONDITION)
@@ -551,7 +573,6 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-
         query.edit_message_text(text='Выберите варианты авторов объявлений:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_AUTHOR_TYPE))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_AUTHOR_TYPE)
@@ -577,7 +598,6 @@ class TelegramMenu:
 
         query = update.callback_query
         query.answer()
-
         query.edit_message_text(text='Выберите вариант расположения руля:',
                                 reply_markup=self.generate_buttons(keyboard, user_id, FILTER_WHEEL))
         self.user_manager.set_field(update.effective_chat.id, 'current_step', FILTER_WHEEL)
