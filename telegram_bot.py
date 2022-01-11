@@ -37,61 +37,24 @@ SECONDARY_MENU = [
 
 
 def generate_current_filters_message(user_manager, user_id: str) -> str:
-    message = '<b>УСТАНОВЛЕННЫЕ ФИЛЬТРЫ</b>\n'
 
-    current_filters = user_manager.get_field(user_id, FILTER_BRAND)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nМАРКА: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
+    all_filters = [{'name': FILTER_BRAND, 'title': '\n▶️<b>МАРКА: </b>'},
+                   {'name': FILTER_YEAR, 'title': '\n▶️<b>ГОД ВЫПУСКА: </b>'},
+                   {'name': FILTER_REGISTRATION, 'title': '\n▶️<b>РЕГИСТРАЦИЯ: </b>'},
+                   {'name': FILTER_PRICE, 'title': '\n▶️<b>ЦЕНА: </b>'},
+                   {'name': FILTER_FUEL_TYPE, 'title': '\n▶️<b>ТИП ТОПЛИВА: </b>'},
+                   {'name': FILTER_TRANSMISSION, 'title': '\n▶️<b>ТИП КПП: </b>'},
+                   {'name': FILTER_CONDITION, 'title': '\n▶️<b>СОСТОЯНИЕ: </b>'},
+                   {'name': FILTER_AUTHOR_TYPE, 'title': '\n▶️<b>АВТОР ОБЪЯВЛЕНИЯ: </b>'},
+                   {'name': FILTER_WHEEL, 'title': '\n▶️<b>РУЛЬ: </b>'}]
 
-    current_filters = user_manager.get_field(user_id, FILTER_YEAR)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nГОД ВЫПУСКА: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_REGISTRATION)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nРЕГИСТРАЦИЯ: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_PRICE)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nЦЕНА: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_FUEL_TYPE)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nТИП ТОПЛИВА: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_TRANSMISSION)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nТИП КПП: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_CONDITION)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nСОСТОЯНИЕ: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_AUTHOR_TYPE)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nАВТОР ОБЪЯВЛЕНИЯ: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
-
-    current_filters = user_manager.get_field(user_id, FILTER_WHEEL)
-    if current_filters is not None and len(current_filters) != 0:
-        message += '\nРУЛЬ: '
-        for current_filter in current_filters:
-            message += f'{current_filter} | '
+    message = '✅<b>УСТАНОВЛЕННЫЕ ФИЛЬТРЫ</b>✅\n'
+    for auto_filter in all_filters:
+        current_filters = user_manager.get_field(user_id, auto_filter.get('name'))
+        if current_filters is not None and len(current_filters) != 0:
+            message += auto_filter.get('title')
+            for current_filter in current_filters:
+                message += f'{current_filter} | '
 
     return message
 
