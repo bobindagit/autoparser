@@ -36,6 +36,64 @@ SECONDARY_MENU = [
 ]
 
 
+def generate_current_filters_message(user_manager, user_id: str) -> str:
+    message = '<b>УСТАНОВЛЕННЫЕ ФИЛЬТРЫ</b>\n'
+
+    current_filters = user_manager.get_field(user_id, FILTER_BRAND)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nМАРКА: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_YEAR)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nГОД ВЫПУСКА: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_REGISTRATION)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nРЕГИСТРАЦИЯ: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_PRICE)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nЦЕНА: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_FUEL_TYPE)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nТИП ТОПЛИВА: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_TRANSMISSION)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nТИП КПП: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_CONDITION)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nСОСТОЯНИЕ: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_AUTHOR_TYPE)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nАВТОР ОБЪЯВЛЕНИЯ: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+    current_filters = user_manager.get_field(user_id, FILTER_WHEEL)
+    if current_filters is not None and len(current_filters) != 0:
+        message += '\nРУЛЬ: '
+        for current_filter in current_filters:
+            message += f'{current_filter} | '
+
+
 class TelegramBot:
 
     def __init__(self, db_user_info):
@@ -249,6 +307,7 @@ class TelegramMenu:
         main_keyboard = [
             [KeyboardButton(text='📝 Фильтры'),
              KeyboardButton(text='🔔 Уведомлять / 🔕 Не уведомлять'),
+             KeyboardButton(text='✅ Мои фильтры'),
              KeyboardButton(text='❌ Очистить все фильтры')]
         ]
         self.reply_markup = ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True, one_time_keyboard=False)
@@ -279,6 +338,11 @@ class TelegramMenu:
             # Info message
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text='❌ <b>Все фильтры очищены</b> ❌',
+                                     parse_mode=ParseMode.HTML)
+        elif user_message.find('МОИ ФИЛЬТРЫ') != -1:
+            # Info message
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text=generate_current_filters_message(self.user_manager, user_id),
                                      parse_mode=ParseMode.HTML)
         elif user_message.find('ФИЛЬТРЫ') != -1:
             update.message.reply_text('Выберите фильтр для настройки',
