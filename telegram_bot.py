@@ -53,7 +53,7 @@ def generate_current_filters_message(user_manager, user_id: str) -> str:
     message = '✅ <b>УСТАНОВЛЕННЫЕ ФИЛЬТРЫ</b> ✅\n'
     for auto_filter in all_filters:
         current_filters = user_manager.get_field(user_id, auto_filter.get('name'))
-        if current_filters is not None and len(current_filters) != 0:
+        if isinstance(current_filters, bool) or (current_filters is not None and len(current_filters) != 0):
             message += auto_filter.get('title')
             if auto_filter.get('name') == FILTER_PRICE_NEGOTIABLE:
                 if current_filters:
