@@ -43,6 +43,7 @@ def generate_current_filters_message(user_manager, user_id: str) -> str:
                    {'name': FILTER_YEAR, 'title': '\n▶️<b>ГОД ВЫПУСКА: </b>'},
                    {'name': FILTER_REGISTRATION, 'title': '\n▶️<b>РЕГИСТРАЦИЯ: </b>'},
                    {'name': FILTER_PRICE, 'title': '\n▶️<b>ЦЕНА: </b>'},
+                   {'name': FILTER_PRICE_NEGOTIABLE, 'title': '\n▶️<b>ДОГОВОРНЫЕ ЦЕНЫ: </b>'},
                    {'name': FILTER_FUEL_TYPE, 'title': '\n▶️<b>ТИП ТОПЛИВА: </b>'},
                    {'name': FILTER_TRANSMISSION, 'title': '\n▶️<b>ТИП КПП: </b>'},
                    {'name': FILTER_CONDITION, 'title': '\n▶️<b>СОСТОЯНИЕ: </b>'},
@@ -54,8 +55,14 @@ def generate_current_filters_message(user_manager, user_id: str) -> str:
         current_filters = user_manager.get_field(user_id, auto_filter.get('name'))
         if current_filters is not None and len(current_filters) != 0:
             message += auto_filter.get('title')
-            for current_filter in current_filters:
-                message += f'{current_filter} | '
+            if auto_filter.get('name') == FILTER_PRICE_NEGOTIABLE:
+                if current_filters:
+                    message += 'Включены'
+                else:
+                    message += 'Выключены'
+            else:
+                for current_filter in current_filters:
+                    message += f'{current_filter} | '
 
     return message
 
