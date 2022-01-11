@@ -439,7 +439,7 @@ class TelegramMenu:
 
         if update.callback_query.data == 'm4_1':
             current_filter = not current_filter
-            self.user_manager.set_filter(user_id, FILTER_PRICE_NEGOTIABLE, current_filter)
+            self.user_manager.set_field(user_id, FILTER_PRICE_NEGOTIABLE, current_filter)
 
         if current_filter:
             keyboard = [
