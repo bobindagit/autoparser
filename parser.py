@@ -41,7 +41,7 @@ async def get_link_data(session, link: str) -> dict:
         drive_type = get_value(soup, ' Привод ')
         # Price
         prices = soup.find('ul', class_='adPage__content__price-feature__prices')
-        if prices.find('li', class_='adPage__content__price-feature__prices__price is-negotiable') is None:
+        if prices and prices.find('li', class_='adPage__content__price-feature__prices__price is-negotiable') is None:
             # Finding price in EURO
             price = '-'
             for price_row in soup.find('ul', class_='adPage__content__price-feature__prices').find_all('li'):
