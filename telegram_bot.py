@@ -221,10 +221,13 @@ class UserManager:
 
             # Check if current info matches user filters
             if self.info_matches_filters(info, user_info):
-                self.updater.bot.send_photo(chat_id=user_info.get('user_id'),
-                                            photo=img,
-                                            caption=img_caption,
-                                            parse_mode=ParseMode.HTML)
+                try:
+                    self.updater.bot.send_photo(chat_id=user_info.get('user_id'),
+                                                photo=img,
+                                                caption=img_caption,
+                                                parse_mode=ParseMode.HTML)
+                except:
+                    print(f'BOT was banned by the user {user_info.get("user_id")}')
 
     def info_matches_filters(self, info: dict, user_info: dict) -> bool:
 
