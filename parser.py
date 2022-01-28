@@ -52,7 +52,10 @@ async def get_link_data(session, link: str) -> dict:
         else:
             price = 'Договорная'
         # Locality
-        locality = soup.find('meta', itemprop='addressLocality').get('content')
+        try:
+            locality = soup.find('meta', itemprop='addressLocality').get('content')
+        except:
+            locality = '-'
         # Contacts
         # If ad was deleted - contacts will be hide
         try:
